@@ -197,7 +197,7 @@ def prepare_rae_data(word_vectors=None, datafile=None):
                 phrases = getPhrases(line)
                 instance_strs.append(phrases[0])
                 instance_strs.append(phrases[1])
-                print "%s %s\n" %phrases[0],phrases[1]
+                print("%s %s\n" %(phrases[0],phrases[1]))
 
     # send training data
     instance_num = len(instance_strs)
