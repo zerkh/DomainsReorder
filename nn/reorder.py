@@ -6,9 +6,9 @@ from vec.wordvector import WordVectors
 from ioutil import unpickle, Reader, Writer
 from nn.instance import Instance
 
-class ReorderClassifer(object):
 
-    def __init__(self, W1, W2, b1, b2, rae, f=tanh):
+class ReorderClassifer(object):
+    def __init__(self, W1, W2, b1, b2, f=tanh):
         self.W1 = W1
         self.W2 = W2
         self.b1 = b1
@@ -16,35 +16,31 @@ class ReorderClassifer(object):
         self.f = f
 
     @classmethod
-    def build(self, theta, embsize):
+    def build(self, theta, embsize, rae):
         raeSize = RecursiveAutoencoder.compute_parameter_num(embsize)
         offset = raeSize
 
-        W1 = theta[offset:offset+embsize].reshape(1, embsize)
+        W1 = theta[offset:offset + embsize].reshape(1, embsize)
         offset += embsize
 
-        W2 = theta[offset:offset+embsize].reshape(1, embsize)
+        W2 = theta[offset:offset + embsize].reshape(1, embsize)
         offset += embsize
 
-        b1 = theta[offset:offset+1].reshape(1,1)
+        b1 = theta[offset:offset + 1].reshape(1, 1)
         offset += 1
 
-        b2 = theta[offset:offset+1].reshape(1,1)
+        b2 = theta[offset:offset + 1].reshape(1, 1)
         offset += 1
 
         return ReorderClassifer(W1, W2, b1, b2)
 
     @classmethod
-    def forward(self, instance, prePhrase, aftPhrase):
-        embsize = self.rae.get_embsize()
-        prePhrase = prePhrase
-        aftPhrase = aftPhrase
+    def forward(self, instance, prePhrase, aftPhrase, embsize):
+        output1 = dot(concatenate((prePhrase, aftPhrase)), self.W1) + self.b1
+        output2 = dot(concatenate((prePhrase, aftPhrase)), self.W2) + self.b2
 
-        output1 = dot(concatenate(prePhrase, aftPhrase), self.W1) + self.b1
-        output2 = dot(concatenate(prePhrase, aftPhrase), self.W2) + self.b2
-
-        output1 = exp(output1)/(exp(output1) + exp(output2))
-        output2 = 1-output1
+        output1 = exp(output1) / (exp(output1) + exp(output2))
+        output2 = 1 - output1
 
         softmaxLayer = []
         softmaxLayer.append(output1)
@@ -63,20 +59,48 @@ class ReorderClassifer(object):
         delta_to_rae = softmaxLayer
 
         if order == 1:
-            total_grad.gradW1 += dot(softmaxLayer[1], concatenate(prePhrase.T, aftPhrase.T))
-            total_grad.gradb1 += softmaxLayer[1]
-            delta_to_rae[0] = softmaxLayer[1]
+            total_grad.gradW1 -= dot(softmaxLayer[1], concatenate((prePhrase.T, aftPhrase.T)))
+            total_grad.gradb1 -= softmaxLayer[1]
+            delta_to_rae[0] = -1 * softmaxLayer[1]
             delta_to_rae[1] = 0
         else:
-            total_grad.gradW2 += dot(softmaxLayer[0], concatenate(prePhrase.T, aftPhrase.T))
-            total_grad.gradb2 += softmaxLayer[0]
+            total_grad.gradW2 -= dot(softmaxLayer[0], concatenate((prePhrase.T, aftPhrase.T)))
+            total_grad.gradb2 -= softmaxLayer[0]
             delta_to_rae[0] = 0
-            delta_to_rae[1] = softmaxLayer[0]
+            delta_to_rae[1] = -1 * softmaxLayer[0]
 
         delta_to_rae = dot(delta_to_rae[0], cls.W1.T) + dot(delta_to_rae[1], cls.W2.T)
-        embSize = len(delta_to_rae)/2
+        embSize = len(delta_to_rae) / 2
 
-        return delta_to_rae[0:embSize], delta_to_rae[embSize:embSize*2]
+        return delta_to_rae[0:embSize], delta_to_rae[embSize:embSize * 2]
+
+    @classmethod
+    def compute_parameter_num(cls, embsize):
+        '''Compute the parameter number of a reorder model
+
+        Args:
+          embsize: dimension of word embedding vector
+
+        Returns:
+          number of parameters
+        '''
+        sz = embsize * 2  # W1
+        sz += embsize * 2  # W2
+        sz += 1  # b1
+        sz += 1  # b2
+        return sz
+
+
+    def get_weights_square(self):
+        square = (self.W1 ** 2).sum()
+        square += (self.W2 ** 2).sum()
+        return square
+
+
+    def get_bias_square(self):
+        square = (self.b1 ** 2).sum()
+        square += (self.b2 ** 2).sum()
+        return square
 
     class Gradient(object):
         def __init__(self, rm):
@@ -96,4 +120,4 @@ class ReorderClassifer(object):
             return concatenate(vectors)[:, 0]
 
     def get_zero_gradients(self):
-            return self.Gradient(self)
+        return self.Gradient(self)
