@@ -21,7 +21,7 @@ import lbfgs
 from ioutil import Reader
 from nn.rae import RecursiveAutoencoder
 from nn.util import init_W
-from nn.instance import Instance
+from nn.instance import Instance, ReorderInstance
 from nn.signals import TerminatorSignal, WorkingSignal, ForceQuitSignal
 from errors import GridentCheckingFailedError
 from vec.wordvector import WordVectors
@@ -230,8 +230,8 @@ def prepare_rae_data(word_vectors=None, datafile=None):
     return instances, word_vectors, total_internal_node
 
 
-def load_instances(instance_strs, word_vectors):
-  '''Load training examples
+def load_rae_instances(instance_strs, word_vectors):
+  '''Load rae training examples
 
   Args:
     instance_strs: each string is a training example
@@ -246,6 +246,20 @@ def load_instances(instance_strs, word_vectors):
   for instance in instances:
     total_internal_node += (len(instance.words)-1) * instance.freq
   return instances, total_internal_node
+
+def load_instances(instances_lines, word_vectors):
+    '''Load real training examples
+
+    Args:
+        instance_lines: each string is a training example
+        word_vectors: an instance of vec.wordvector
+
+    Return:
+        instances: a list of ReorderInstance
+    '''
+    instances = [ReorderInstance.paser_from_str(i, word_vectors) for i in instances_lines]
+
+    return  instances
 
 class ThetaSaver(object):
 
