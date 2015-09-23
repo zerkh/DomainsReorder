@@ -1,13 +1,26 @@
+#-*- coding: utf-8 -*-
 __author__ = 'kh'
+
+from __future__ import division
+
+import argparse
+import logging
+from sys import stderr
 
 from nn.rae import RecursiveAutoencoder
 from numpy import arange, dot, exp, zeros, zeros_like, tanh, concatenate, log
 from vec.wordvector import WordVectors
 from ioutil import unpickle, Reader, Writer
 from nn.instance import Instance
+from numpy import linalg as LA
+from functions import tanh_norm1_prime, sum_along_column
+from vec.wordvector import WordVectors
+from ioutil import unpickle, Reader, Writer
+
 
 
 class ReorderClassifer(object):
+
     def __init__(self, W1, W2, b1, b2, f=tanh):
         self.W1 = W1
         self.W2 = W2
@@ -34,7 +47,6 @@ class ReorderClassifer(object):
 
         return ReorderClassifer(W1, W2, b1, b2)
 
-    @classmethod
     def forward(self, instance, prePhrase, aftPhrase, embsize):
         output1 = dot(concatenate((prePhrase, aftPhrase)), self.W1) + self.b1
         output2 = dot(concatenate((prePhrase, aftPhrase)), self.W2) + self.b2
@@ -54,7 +66,6 @@ class ReorderClassifer(object):
 
         return softmaxLayer, reo_error
 
-    @classmethod
     def backward(cls, softmaxLayer, order, prePhrase, aftPhrase, total_grad):
         delta_to_rae = softmaxLayer
 
