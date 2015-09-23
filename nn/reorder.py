@@ -124,5 +124,12 @@ class ReorderClassifer(object):
             vectors.append(self.gradb2)
             return concatenate(vectors)[:, 0]
 
+        def __mul__(self, other):
+            self.gradW1 *= other
+            self.gradW2 *= other
+            self.gradb1 *= other
+            self.gradb2 *= other
+            return self
+
     def get_zero_gradients(self):
         return self.Gradient(self)
