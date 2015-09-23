@@ -20,11 +20,11 @@ class ReorderClassifer(object):
         raeSize = RecursiveAutoencoder.compute_parameter_num(embsize)
         offset = raeSize
 
-        W1 = theta[offset:offset + embsize].reshape(1, embsize)
-        offset += embsize
+        W1 = theta[offset:offset + embsize*2].reshape(1, embsize*2)
+        offset += embsize*2
 
-        W2 = theta[offset:offset + embsize].reshape(1, embsize)
-        offset += embsize
+        W2 = theta[offset:offset + embsize*2].reshape(1, embsize*2)
+        offset += embsize*2
 
         b1 = theta[offset:offset + 1].reshape(1, 1)
         offset += 1

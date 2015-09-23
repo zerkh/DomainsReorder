@@ -86,7 +86,7 @@ class RecursiveAutoencoder(object):
       theta: parameter vector
       embsize: dimension of word embedding vector
     '''
-    assert(theta.size == cls.compute_parameter_num(embsize))
+    #assert(theta.size == cls.compute_parameter_num(embsize))
     offset = 0
     sz = embsize * embsize
     Wi1 = theta[offset:offset+sz].reshape(embsize, embsize)
