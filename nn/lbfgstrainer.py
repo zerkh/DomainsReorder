@@ -152,9 +152,9 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, l
         #init rae
         rae = RecursiveAutoencoder.build(theta, embsize)
 
-        offset = RecursiveAutoencoder.compute_parameter_num()
+        offset = RecursiveAutoencoder.compute_parameter_num(embsize)
 
-        rm = ReorderClassifer.build(theta[offset:], embsize)
+        rm = ReorderClassifer.build(theta, embsize, rae)
 
         #compute local reconstruction error, reo and gradients
         local_error, rae_gradient, rm_gradient = process_local_batch(rm, rae, word_vectors, instances, lambda_reo)
@@ -337,7 +337,7 @@ def prepare_rae_data(word_vectors=None, datafile=None):
         local_instance_strs = instance_strs[0:sizes[0]]
         del instance_strs
 
-        instances, internal_node_num = load_instances(local_instance_strs,
+        instances, internal_node_num = load_rae_instances(local_instance_strs,
                                                       word_vectors)
         total_internal_node = comm.allreduce(internal_node_num, op=MPI.SUM)
         return instances, word_vectors, total_internal_node
@@ -348,7 +348,7 @@ def prepare_rae_data(word_vectors=None, datafile=None):
         local_instance_strs = comm.recv(source=0)
         comm.barrier()
 
-        instances, internal_node_num = load_instances(local_instance_strs,
+        instances, internal_node_num = load_rae_instances(local_instance_strs,
                                                       word_vectors)
         total_internal_node = comm.allreduce(internal_node_num, op=MPI.SUM)
         return instances, word_vectors, total_internal_node
@@ -601,13 +601,14 @@ if __name__ == '__main__':
         args = (instances, total_internal_node, word_vectors, embsize, lambda_reg)
         theta_opt = None
         try:
-            theta_opt = lbfgs.optimize(func, theta0, maxiter, verbose, checking_grad,
+            theta_opt = lbfgs.optimize(func, theta0[0:4*embsize*embsize+3*embsize], maxiter, verbose, checking_grad,
                                        args, callback=callback)
         except GridentCheckingFailedError:
             send_terminate_signal()
             print >> stderr, 'Gradient checking failed, exit'
             exit(-1)
 
+	print >> stderr, 'Start training rm...'
         instances, _ = prepare_data(word_vectors, instances_files)
         func = compute_cost_and_grad
         args = (instances, word_vectors, embsize, lambda_reg, lambda_reo)
