@@ -1,12 +1,6 @@
 #-*- coding: utf-8 -*-
 __author__ = 'kh'
 
-from __future__ import division
-
-import argparse
-import logging
-from sys import stderr
-
 from nn.rae import RecursiveAutoencoder
 from numpy import arange, dot, exp, zeros, zeros_like, tanh, concatenate, log
 from vec.wordvector import WordVectors
@@ -48,8 +42,8 @@ class ReorderClassifer(object):
         return ReorderClassifer(W1, W2, b1, b2)
 
     def forward(self, instance, prePhrase, aftPhrase, embsize):
-        output1 = dot(concatenate((prePhrase, aftPhrase)), self.W1) + self.b1
-        output2 = dot(concatenate((prePhrase, aftPhrase)), self.W2) + self.b2
+        output1 = dot(self.W1, concatenate((prePhrase, aftPhrase))) + self.b1
+        output2 = dot(self.W2, concatenate((prePhrase, aftPhrase))) + self.b2
 
         output1 = exp(output1) / (exp(output1) + exp(output2))
         output2 = 1 - output1
@@ -70,17 +64,17 @@ class ReorderClassifer(object):
         delta_to_rae = softmaxLayer
 
         if order == 1:
-            total_grad.gradW1 -= dot(softmaxLayer[1], concatenate((prePhrase.T, aftPhrase.T)))
+            total_grad.gradW1 -= concatenate((prePhrase, aftPhrase)).T * softmaxLayer[1]
             total_grad.gradb1 -= softmaxLayer[1]
             delta_to_rae[0] = -1 * softmaxLayer[1]
             delta_to_rae[1] = 0
         else:
-            total_grad.gradW2 -= dot(softmaxLayer[0], concatenate((prePhrase.T, aftPhrase.T)))
+            total_grad.gradW2 -= concatenate((prePhrase, aftPhrase)).T * softmaxLayer[0]
             total_grad.gradb2 -= softmaxLayer[0]
             delta_to_rae[0] = 0
             delta_to_rae[1] = -1 * softmaxLayer[0]
 
-        delta_to_rae = dot(delta_to_rae[0], cls.W1.T) + dot(delta_to_rae[1], cls.W2.T)
+        delta_to_rae = delta_to_rae[0] * cls.W1.T + delta_to_rae[1] * cls.W2.T
         embSize = len(delta_to_rae) / 2
 
         return delta_to_rae[0:embSize], delta_to_rae[embSize:embSize * 2]

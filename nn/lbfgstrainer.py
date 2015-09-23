@@ -251,12 +251,12 @@ def process_local_batch(rm, rae, word_vectors, instances, lambda_reo):
 
         softmaxLayer, reo_error = rm.forward(instance, root_prePhrase.p, root_aftPhrase.p, embsize)
         total_error += reo_error * lambda_reo
-        delta_to_left, delta_to_right = rm.backward(softmaxLayer, instance.order, root_prePhrase, root_aftPhrase,
+        delta_to_left, delta_to_right = rm.backward(softmaxLayer, instance.order, root_prePhrase.p, root_aftPhrase.p,
                                                     rm_gradients)
         rae.backward(root_prePhrase, rae_gradients, delta_to_left)
         rae.backward(root_aftPhrase, rae_gradients, delta_to_right)
 
-    return total_error, rae_gradients.to_row_vector(), rm.to_row_vector()
+    return total_error, rae_gradients.to_row_vector(), rm_gradients.to_row_vector()
 
 
 def init_theta(embsize, num_of_domains=1,_seed=None):
