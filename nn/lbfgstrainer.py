@@ -195,7 +195,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, l
 
         total_rm_grad += reg_grad.to_row_vector()
 
-        return total_error, concatenate(total_rae_grad,total_rm_grad)
+        return total_error, concatenate((total_rae_grad,total_rm_grad))
     else:
         while True:
             # receive signal
@@ -371,6 +371,13 @@ def prepare_data(word_vectors=None, dataFile=None):
         instance_of_domain = []
         instance_lines = []
 
+	if type(dataFile) == str:
+		with Reader(dataFile) as file:
+			for line in file:
+				instance_of_domain.append(line)
+		instances = load_instances(instance_of_domain, word_vectors)
+		return instances, word_vectors
+
         for file in dataFile:
             with Reader(file) as file:
                 for line in file:
@@ -436,16 +443,16 @@ def load_instances(instances_lines, word_vectors):
     return instances
 
 def test(instances, theta, word_vectors):
-    outfile = open('test_result.txt', 'w')
+    outfile = open('./output/test_result.txt', 'w')
     total_lines = len(instances)
     total_true = 0
 
     #init rae
     rae = RecursiveAutoencoder.build(theta, embsize)
 
-    offset = RecursiveAutoencoder.compute_parameter_num()
+    offset = RecursiveAutoencoder.compute_parameter_num(embsize)
 
-    rm = ReorderClassifer.build(theta[offset:], embsize)
+    rm = ReorderClassifer.build(theta, embsize, rae)
 
     for instance in instances:
         words_embedded = word_vectors[instance.preWords]
@@ -461,10 +468,10 @@ def test(instances, theta, word_vectors):
         if instance.order == 0 and softmaxLayer[0] < softmaxLayer[1]:
             total_true += 1
 
-        print("%f\t[%f,%f]\n" %(instance.order, softmaxLayer[0], softmaxLayer[1]))
+        outFile.write("%f\t[%f,%f]\n" %(instance.order, softmaxLayer[0], softmaxLayer[1]))
 
-    print("Total instances: %f\tTotal true predictions: %f" %(total_lines, total_true))
-    print("Precision: %f" %(float(total_true/total_lines)))
+    outFile.write("Total instances: %f\tTotal true predictions: %f" %(total_lines, total_true))
+    outFile.write("Precision: %f" %(float(total_true/total_lines)))
 
 class ThetaSaver(object):
     def __init__(self, model_name, every=1):
@@ -545,6 +552,8 @@ if __name__ == '__main__':
     verbose = options.verbose
     is_Test = options.isTest
     instances_of_News = options.instances_of_News
+
+    print instances_of_News
 
     if rank == 0:
         logging.basicConfig()
