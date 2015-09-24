@@ -143,7 +143,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, l
     total_grad: the gradients of the objective function at theta
     '''
     if rank == 0:
-        #send work signal
+        # send work signal
         send_working_signal()
 
         #send theta
@@ -195,7 +195,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, l
 
         total_rm_grad += reg_grad.to_row_vector()
 
-        return total_error, concatenate((total_rae_grad,total_rm_grad))
+        return total_error, concatenate((total_rae_grad, total_rm_grad))
     else:
         while True:
             # receive signal
@@ -213,7 +213,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, l
             offset = RecursiveAutoencoder.compute_parameter_num()
             rm = ReorderClassifer.build(theta[offset:], embsize)
 
-            #compute local reconstruction error, reo and gradients
+            # compute local reconstruction error, reo and gradients
             local_error, rae_gradient, rm_gradient = process_local_batch(rm, rae, word_vectors, instances, lambda_reo)
 
             # send local reconstruction error to root
@@ -259,7 +259,7 @@ def process_local_batch(rm, rae, word_vectors, instances, lambda_reo):
     return total_error, rae_gradients.to_row_vector(), rm_gradients.to_row_vector()
 
 
-def init_theta(embsize, num_of_domains=1,_seed=None):
+def init_theta(embsize, num_of_domains=1, _seed=None):
     if _seed != None:
         ori_state = get_state()
         seed(_seed)
@@ -283,13 +283,13 @@ def init_theta(embsize, num_of_domains=1,_seed=None):
     parameters.append(zeros(embsize))
 
     # for i in range(0, num_of_domains):
-    #     parameters.append(init_W(1, embsize*2))
+    # parameters.append(init_W(1, embsize*2))
     #     parameters.append(init_W(1, embsize*2))
     #     parameters.append(zeros(1))
     #     parameters.append(zeros(1))
 
-    parameters.append(init_W(1, embsize*2))
-    parameters.append(init_W(1, embsize*2))
+    parameters.append(init_W(1, embsize * 2))
+    parameters.append(init_W(1, embsize * 2))
     parameters.append(zeros(1))
     parameters.append(zeros(1))
 
@@ -338,7 +338,7 @@ def prepare_rae_data(word_vectors=None, datafile=None):
         del instance_strs
 
         instances, internal_node_num = load_rae_instances(local_instance_strs,
-                                                      word_vectors)
+                                                          word_vectors)
         total_internal_node = comm.allreduce(internal_node_num, op=MPI.SUM)
         return instances, word_vectors, total_internal_node
     else:
@@ -349,7 +349,7 @@ def prepare_rae_data(word_vectors=None, datafile=None):
         comm.barrier()
 
         instances, internal_node_num = load_rae_instances(local_instance_strs,
-                                                      word_vectors)
+                                                          word_vectors)
         total_internal_node = comm.allreduce(internal_node_num, op=MPI.SUM)
         return instances, word_vectors, total_internal_node
 
@@ -365,18 +365,18 @@ def prepare_data(word_vectors=None, dataFile=None):
     word_vectors
     '''
     if rank == 0:
-        #broadcast word_vectors
+        # broadcast word_vectors
         comm.bcast(word_vectors, root=0)
 
         instance_of_domain = []
         instance_lines = []
 
-	if type(dataFile) == str:
-		with Reader(dataFile) as file:
-			for line in file:
-				instance_of_domain.append(line)
-		instances = load_instances(instance_of_domain, word_vectors)
-		return instances, word_vectors
+        if type(dataFile) == str:
+            with Reader(dataFile) as file:
+                for line in file:
+                    instance_of_domain.append(line)
+            instances = load_instances(instance_of_domain, word_vectors)
+            return instances, word_vectors
 
         for file in dataFile:
             with Reader(file) as file:
@@ -387,7 +387,7 @@ def prepare_data(word_vectors=None, dataFile=None):
 
         # send training data
         domain_num = len(instance_lines)
-        for i in range(1, worker_num):
+        for i in range(1, domain_num):
             comm.send(instance_lines[i], dest=i)
         comm.barrier()
 
@@ -442,12 +442,13 @@ def load_instances(instances_lines, word_vectors):
 
     return instances
 
+
 def test(instances, theta, word_vectors):
     outfile = open('./output/test_result.txt', 'w')
     total_lines = len(instances)
     total_true = 0
 
-    #init rae
+    # init rae
     rae = RecursiveAutoencoder.build(theta, embsize)
 
     offset = RecursiveAutoencoder.compute_parameter_num(embsize)
@@ -468,10 +469,11 @@ def test(instances, theta, word_vectors):
         if instance.order == 0 and softmaxLayer[0] < softmaxLayer[1]:
             total_true += 1
 
-        outFile.write("%f\t[%f,%f]\n" %(instance.order, softmaxLayer[0], softmaxLayer[1]))
+        outfile.write("%f\t[%f,%f]\n" % (instance.order, softmaxLayer[0], softmaxLayer[1]))
 
-    outFile.write("Total instances: %f\tTotal true predictions: %f" %(total_lines, total_true))
-    outFile.write("Precision: %f" %(float(total_true/total_lines)))
+    outfile.write("Total instances: %f\tTotal true predictions: %f" % (total_lines, total_true))
+    outfile.write("Precision: %f" % (float(total_true / total_lines)))
+
 
 class ThetaSaver(object):
     def __init__(self, model_name, every=1):
@@ -538,7 +540,7 @@ if __name__ == '__main__':
         instances_files.append(options.instances_of_Education)
     if options.instances_of_Laws != None:
         instances_files.append(options.instances_of_Laws)
-    num_of_domains= len(instances_files)
+    num_of_domains = len(instances_files)
 
     model = options.model
     word_vector_file = options.word_vector
@@ -610,14 +612,15 @@ if __name__ == '__main__':
         args = (instances, total_internal_node, word_vectors, embsize, lambda_reg)
         theta_opt = None
         try:
-            theta_opt = lbfgs.optimize(func, theta0[0:4*embsize*embsize+3*embsize], maxiter, verbose, checking_grad,
+            theta_opt = lbfgs.optimize(func, theta0[0:4 * embsize * embsize + 3 * embsize], maxiter, verbose,
+                                       checking_grad,
                                        args, callback=callback)
         except GridentCheckingFailedError:
             send_terminate_signal()
             print >> stderr, 'Gradient checking failed, exit'
             exit(-1)
 
-	print >> stderr, 'Start training rm...'
+        print >> stderr, 'Start training rm...'
         instances, _ = prepare_data(word_vectors, instances_files)
         func = compute_cost_and_grad
         args = (instances, word_vectors, embsize, lambda_reg, lambda_reo)
