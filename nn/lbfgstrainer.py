@@ -422,6 +422,8 @@ def load_rae_instances(instance_strs, word_vectors):
     '''
 
     instances = [Instance.parse_from_str(i, word_vectors) for i in instance_strs]
+
+    instances = [i for i in instances if len(i.words) != 0]
     total_internal_node = 0
     for instance in instances:
         total_internal_node += (len(instance.words) - 1) * instance.freq
@@ -439,6 +441,8 @@ def load_instances(instances_lines, word_vectors):
         instances: a list of ReorderInstance
     '''
     instances = [ReorderInstance.paser_from_str(i, word_vectors) for i in instances_lines]
+
+    instances = [i for i in instances if len(i.preWords) != 0 and len(i.aftWords) != 0]
 
     return instances
 
