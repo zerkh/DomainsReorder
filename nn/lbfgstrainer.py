@@ -368,30 +368,32 @@ def prepare_data(word_vectors=None, dataFile=None):
         # broadcast word_vectors
         comm.bcast(word_vectors, root=0)
 
-        instance_of_domain = []
         instance_lines = []
 
         if type(dataFile) == str:
             with Reader(dataFile) as file:
                 for line in file:
-                    instance_of_domain.append(line)
-            instances = load_instances(instance_of_domain, word_vectors)
+                    instance_lines.append(line)
+            instances = load_instances(instance_lines, word_vectors)
             return instances, word_vectors
 
         for file in dataFile:
             with Reader(file) as file:
                 for line in file:
-                    instance_of_domain.append(line)
-            instance_lines.append(instance_of_domain)
-            instance_of_domain = []
+                    instance_lines.append(line)
 
+        instance_num = len(instance_lines)
+        esize = int(instance_num / worker_num + 0.5)
+        sizes = [esize] * worker_num
+        sizes[-1] = instance_num - esize * (worker_num-1)
+        offset = sizes[0]
         # send training data
-        domain_num = len(instance_lines)
-        for i in range(1, domain_num):
-            comm.send(instance_lines[i], dest=i)
+        for i in range(1, worker_num):
+            comm.send(instance_lines[offset:offset+sizes[i]], dest=i)
+            offset += sizes[i]
         comm.barrier()
 
-        local_instance_strs = instance_lines[0]
+        local_instance_strs = instance_lines[0:sizes[0]]
         del instance_lines
 
         instances = load_instances(local_instance_strs, word_vectors)
