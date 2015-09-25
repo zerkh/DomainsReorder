@@ -73,11 +73,23 @@ def preTrain(theta, instances, total_internal_node_num,
         # send theta
         comm.Bcast([theta, MPI.DOUBLE], root=0)
 
+        #send data
+        instance_num = len(instances)
+        esize = int(instance_num/worker_num+0.5)
+        sizes = [esize] * worker_num
+        sizes[-1] = instance_num - esize*(worker_num-1)
+        offset = sizes[0]
+        for i in range(1, worker_num):
+            comm.send(instances[offset:offset+sizes[i]], dest=i)
+            offset += sizes[i]
+        comm.barrier()
+        local_instance_strs = instances[0:sizes[0]]
+
         # init recursive autoencoder
         rae = RecursiveAutoencoder.build(theta, embsize)
 
         # compute local reconstruction error and gradients
-        rec_error, gradient_vec = process_rae_local_batch(rae, word_vectors, instances)
+        rec_error, gradient_vec = process_rae_local_batch(rae, word_vectors, local_instance_strs)
 
         # compute total reconstruction error
         total_rec_error = comm.reduce(rec_error, op=MPI.SUM, root=0)
@@ -115,11 +127,15 @@ def preTrain(theta, instances, total_internal_node_num,
             # receive theta
             comm.Bcast([theta, MPI.DOUBLE], root=0)
 
+            # receive data
+            local_instance_strs = comm.recv(source=0)
+            comm.barrier()
+
             # init recursive autoencoder
             rae = RecursiveAutoencoder.build(theta, embsize)
 
             # compute local reconstruction error and gradients
-            rec_error, gradient_vec = process_rae_local_batch(rae, word_vectors, instances)
+            rec_error, gradient_vec = process_rae_local_batch(rae, word_vectors, local_instance_strs)
 
             # send local reconstruction error to root
             comm.reduce(rec_error, op=MPI.SUM, root=0)
@@ -128,7 +144,7 @@ def preTrain(theta, instances, total_internal_node_num,
             comm.Reduce([gradient_vec, MPI.DOUBLE], None, op=MPI.SUM, root=0)
 
 
-def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, lambda_reo):
+def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, embsize, lambda_reg, lambda_reo):
     '''Compute the value and gradients of the objective function at theta
 
     Args:
@@ -146,17 +162,17 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, l
         # send work signal
         send_working_signal()
 
-        #send theta
+        # send theta
         comm.Bcast([theta, MPI.DOUBLE], root=0)
 
-        #init rae
+        # init rae
         rae = RecursiveAutoencoder.build(theta, embsize)
 
         offset = RecursiveAutoencoder.compute_parameter_num(embsize)
 
         rm = ReorderClassifer.build(theta, embsize, rae)
 
-        #compute local reconstruction error, reo and gradients
+        # compute local reconstruction error, reo and gradients
         local_error, rae_gradient, rm_gradient = process_local_batch(rm, rae, word_vectors, instances, lambda_reo)
 
         # compute total reconstruction error
@@ -282,16 +298,11 @@ def init_theta(embsize, num_of_domains=1, _seed=None):
     # bo2
     parameters.append(zeros(embsize))
 
-    # for i in range(0, num_of_domains):
-    # parameters.append(init_W(1, embsize*2))
-    #     parameters.append(init_W(1, embsize*2))
-    #     parameters.append(zeros(1))
-    #     parameters.append(zeros(1))
-
-    parameters.append(init_W(1, embsize * 2))
-    parameters.append(init_W(1, embsize * 2))
-    parameters.append(zeros(1))
-    parameters.append(zeros(1))
+    for i in range(0, num_of_domains):
+        parameters.append(init_W(1, embsize * 2))
+        parameters.append(init_W(1, embsize * 2))
+        parameters.append(zeros(1))
+        parameters.append(zeros(1))
 
     if _seed != None:
         set_state(ori_state)
@@ -299,7 +310,7 @@ def init_theta(embsize, num_of_domains=1, _seed=None):
     return concatenate(parameters)
 
 
-def prepare_rae_data(word_vectors=None, datafile=None):
+def prepare_rae_data(word_vectors=None, datafile=None, unlabel_file=None):
     '''Prepare training data for rae
     Args:
       word_vectors: an instance of vec.wordvector
@@ -310,51 +321,27 @@ def prepare_rae_data(word_vectors=None, datafile=None):
       word_vectors: word_vectors
       total_internal_node: total number of internal nodes
     '''
-    if rank == 0:
-        # broadcast word vectors
-        comm.bcast(word_vectors, root=0)
+    # broadcast word vectors
+    instance_strs = []
+    # load raw data
+    for file in datafile:
+        with Reader(file) as file:
+            for line in file:
+                phrases = getPhrases(line)
+                instance_strs.append(phrases[0])
+                instance_strs.append(phrases[1])
 
-        instance_strs = []
-        # load raw data
-        for file in datafile:
-            with Reader(file) as file:
-                for line in file:
-                    phrases = getPhrases(line)
-                    instance_strs.append(phrases[0])
-                    instance_strs.append(phrases[1])
+    for line in unlabel_file:
+        phrases = line.split("\t")
+        instance_strs.append(phrases[0])
+        instance_strs.append(phrases[1])
 
-        # send training data
-        instance_num = len(instance_strs)
-        esize = int(instance_num / worker_num + 0.5)
-        sizes = [esize] * worker_num
-        sizes[-1] = instance_num - esize * (worker_num - 1)
-        offset = sizes[0]
-        for i in range(1, worker_num):
-            comm.send(instance_strs[offset:offset + sizes[i]], dest=i)
-            offset += sizes[i]
-        comm.barrier()
-
-        local_instance_strs = instance_strs[0:sizes[0]]
-        del instance_strs
-
-        instances, internal_node_num = load_rae_instances(local_instance_strs,
-                                                          word_vectors)
-        total_internal_node = comm.allreduce(internal_node_num, op=MPI.SUM)
-        return instances, word_vectors, total_internal_node
-    else:
-        word_vectors = comm.bcast(root=0)
-
-        # receive data
-        local_instance_strs = comm.recv(source=0)
-        comm.barrier()
-
-        instances, internal_node_num = load_rae_instances(local_instance_strs,
-                                                          word_vectors)
-        total_internal_node = comm.allreduce(internal_node_num, op=MPI.SUM)
-        return instances, word_vectors, total_internal_node
+    instances, total_internal_node = load_rae_instances(instance_strs,
+                                                        word_vectors)
+    return instances, word_vectors, total_internal_node
 
 
-def prepare_data(word_vectors=None, dataFile=None):
+def prepare_data(word_vectors=None, dataFile=None, unlabelFile=None):
     '''Prepare training data
     Args:
     word_vectors: an instance of vec.wordvector
@@ -364,50 +351,45 @@ def prepare_data(word_vectors=None, dataFile=None):
     instances: a list of ReorderInstance
     word_vectors
     '''
-    if rank == 0:
-        # broadcast word_vectors
-        comm.bcast(word_vectors, root=0)
+    instance_of_domain = []
+    instance_lines = []
+    lines_of_Unlabel = []
+    instances_of_Unlabel = []
 
+    if unlabelFile != None:
+        for line in unlabelFile:
+            lines_of_Unlabel.append(line)
+
+        instances_of_Unlabel = [ReorderInstance.paser_from_str(i, word_vectors) for i in lines_of_Unlabel]
+        instances_of_Unlabel = [i for i in instances_of_Unlabel if len(i.preWords) != 0 and len(i.aftWords) != 0]
+
+    if type(dataFile) == str:
+        with Reader(dataFile) as file:
+            for line in file:
+                instance_of_domain.append(line)
+        instances = load_instances(instance_of_domain, word_vectors)
+        if unlabelFile != None:
+            return instances, instances_of_Unlabel, word_vectors
+        return instances, word_vectors
+
+    for file in dataFile:
+        with Reader(file) as file:
+            for line in file:
+                instance_of_domain.append(line)
+        instance_lines.append(instance_of_domain)
         instance_of_domain = []
-        instance_lines = []
 
-        if type(dataFile) == str:
-            with Reader(dataFile) as file:
-                for line in file:
-                    instance_of_domain.append(line)
-            instances = load_instances(instance_of_domain, word_vectors)
-            return instances, word_vectors
+    instances_of_domains = []
+    for i in range(0, len(instance_lines)):
+        instances = load_instances(instance_lines[i], word_vectors)
+        instances_of_domains.append(instances)
 
-        for file in dataFile:
-            with Reader(file) as file:
-                for line in file:
-                    instance_of_domain.append(line)
-            instance_lines.append(instance_of_domain)
-            instance_of_domain = []
+    del instance_lines
 
-        # send training data
-        domain_num = len(instance_lines)
-        for i in range(1, domain_num):
-            comm.send(instance_lines[i], dest=i)
-        comm.barrier()
+    if unlabelFile != None:
+        return instances_of_domains, instances_of_Unlabel, word_vectors
 
-        local_instance_strs = instance_lines[0]
-        del instance_lines
-
-        instances = load_instances(local_instance_strs, word_vectors)
-
-        return instances, word_vectors
-
-    else:
-        word_vectors = comm.bcast(root=0)
-
-        # receive data
-        local_instance_strs = comm.recv(source=0)
-        comm.barrier()
-
-        instances = load_instances(local_instance_strs, word_vectors)
-
-        return instances, word_vectors
+    return instances_of_domains, word_vectors
 
 
 def load_rae_instances(instance_strs, word_vectors):
@@ -509,6 +491,7 @@ if __name__ == '__main__':
     parser.add_argument('-instances_of_Thesis', required=False)
     parser.add_argument('-instances_of_Science', required=False)
     parser.add_argument('-instances_of_Spoken', required=False)
+    parser.add_argument('-instances_of_Unlabel', required=False)
     parser.add_argument('-isTest', required=False, default=True)
     parser.add_argument('-instances_of_News', required=False)
     parser.add_argument('-model', required=True,
@@ -545,6 +528,7 @@ if __name__ == '__main__':
     if options.instances_of_Laws != None:
         instances_files.append(options.instances_of_Laws)
     num_of_domains = len(instances_files)
+    instances_file_of_Unlabel = options.instances_of_Unlabel
 
     model = options.model
     word_vector_file = options.word_vector
@@ -559,115 +543,102 @@ if __name__ == '__main__':
     is_Test = options.isTest
     instances_of_News = options.instances_of_News
 
-    print instances_of_News
-
-    if rank == 0:
-        logging.basicConfig()
-        logger = logging.getLogger(__name__)
-        if checking_grad:
-            logger.setLevel(logging.WARN)
-        else:
-            logger.setLevel(logging.INFO)
-
-        print >> stderr, 'Instances file: %s' % instances_files
-        print >> stderr, 'Model file: %s' % model
-        print >> stderr, 'Word vector file: %s' % word_vector_file
-        print >> stderr, 'lambda_reg: %20.18f' % lambda_reg
-        print >> stderr, 'Max iterations: %d' % maxiter
-        if _seed:
-            print >> stderr, 'Random seed: %s' % _seed
-        print >> stderr, ''
-
-        print >> stderr, 'load word vectors...'
-        word_vectors = WordVectors.load_vectors(word_vector_file)
-        embsize = word_vectors.embsize()
-
-        print >> stderr, 'preparing data...'
-        instances, _, total_internal_node = prepare_rae_data(word_vectors, instances_files)
-
-        print >> stderr, 'init. RAE parameters...'
-        timer = Timer()
-        timer.tic()
-        if _seed != None:
-            _seed = int(_seed)
-        else:
-            _seed = None
-        print >> stderr, 'seed: %s' % str(_seed)
-
-        theta0 = init_theta(embsize, num_of_domains, _seed=_seed)
-        theta0_init_time = timer.toc()
-        print >> stderr, 'shape of theta0 %s' % theta0.shape
-        timer.tic()
-        if save_theta0:
-            print >> stderr, 'saving theta0...'
-            pos = model.rfind('.')
-            if pos < 0:
-                filename = model + '.theta0'
-            else:
-                filename = model[0:pos] + '.theta0' + model[pos:]
-            with Writer(filename) as theta0_writer:
-                pickle.dump(theta0, theta0_writer)
-        theta0_saving_time = timer.toc()
-
-        print >> stderr, 'optimizing...'
-
-        callback = ThetaSaver(model, every)
-        func = preTrain
-        args = (instances, total_internal_node, word_vectors, embsize, lambda_reg)
-        theta_opt = None
-        try:
-            theta_opt = lbfgs.optimize(func, theta0[0:4 * embsize * embsize + 3 * embsize], maxiter, verbose,
-                                       checking_grad,
-                                       args, callback=callback)
-        except GridentCheckingFailedError:
-            send_terminate_signal()
-            print >> stderr, 'Gradient checking failed, exit'
-            exit(-1)
-
-        print >> stderr, 'Start training rm...'
-        instances, _ = prepare_data(word_vectors, instances_files)
-        func = compute_cost_and_grad
-        args = (instances, word_vectors, embsize, lambda_reg, lambda_reo)
-        try:
-            theta_opt = lbfgs.optimize(func, theta0, maxiter, verbose, checking_grad,
-                                       args, callback=callback)
-        except GridentCheckingFailedError:
-            send_terminate_signal()
-            print >> stderr, 'Gradient checking failed, exit'
-            exit(-1)
-
-        send_terminate_signal()
-        opt_time = timer.toc()
-
-        timer.tic()
-        # pickle form
-        print >> stderr, 'saving parameters to %s' % model
-        with Writer(model) as model_pickler:
-            pickle.dump(theta_opt, model_pickler)
-        # pure text form
-        with Writer(model + '.txt') as writer:
-            [writer.write('%20.8f\n' % v) for v in theta_opt]
-        thetaopt_saving_time = timer.toc()
-
-        print >> stderr, 'Init. theta0  : %10.2f s' % theta0_init_time
-        if save_theta0:
-            print >> stderr, 'Saving theta0 : %10.2f s' % theta0_saving_time
-        print >> stderr, 'Optimizing    : %10.2f s' % opt_time
-        print >> stderr, 'Saving theta  : %10.2f s' % thetaopt_saving_time
-        print >> stderr, 'Done!'
-
-        if is_Test:
-            print >> stderr, 'Start testing...'
-
-            instances, _ = prepare_data(word_vectors, instances_of_News)
-            test(instances, theta0, word_vectors)
+    logging.basicConfig()
+    logger = logging.getLogger(__name__)
+    if checking_grad:
+        logger.setLevel(logging.WARN)
     else:
-        # prepare training data
-        instances, word_vectors, total_internal_node = prepare_rae_data()
-        embsize = word_vectors.embsize()
-        param_size = embsize * embsize * 4 + embsize * 3 + 2 * embsize * 2 + 2
-        theta = zeros((param_size, 1))
-        preTrain(theta[0:4 * embsize * embsize + 3 * embsize], instances, total_internal_node,
-                 word_vectors, embsize, lambda_reg)
-        instances, word_vectors = prepare_data()
-        compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, lambda_reo)
+        logger.setLevel(logging.INFO)
+
+    print >> stderr, 'Instances file: %s' % instances_files
+    print >> stderr, 'Model file: %s' % model
+    print >> stderr, 'Word vector file: %s' % word_vector_file
+    print >> stderr, 'lambda_reg: %20.18f' % lambda_reg
+    print >> stderr, 'Max iterations: %d' % maxiter
+    if _seed:
+        print >> stderr, 'Random seed: %s' % _seed
+    print >> stderr, ''
+
+    print >> stderr, 'load word vectors...'
+    word_vectors = WordVectors.load_vectors(word_vector_file)
+    embsize = word_vectors.embsize()
+
+    print >> stderr, 'preparing data...'
+    instances, _, total_internal_node = prepare_rae_data(word_vectors, instances_files, instances_file_of_Unlabel)
+
+    print >> stderr, 'init. RAE parameters...'
+    timer = Timer()
+    timer.tic()
+    if _seed != None:
+        _seed = int(_seed)
+    else:
+        _seed = None
+    print >> stderr, 'seed: %s' % str(_seed)
+
+    theta0 = init_theta(embsize, num_of_domains, _seed=_seed)
+    theta0_init_time = timer.toc()
+    print >> stderr, 'shape of theta0 %s' % theta0.shape
+    timer.tic()
+    if save_theta0:
+        print >> stderr, 'saving theta0...'
+        pos = model.rfind('.')
+        if pos < 0:
+            filename = model + '.theta0'
+        else:
+            filename = model[0:pos] + '.theta0' + model[pos:]
+        with Writer(filename) as theta0_writer:
+            pickle.dump(theta0, theta0_writer)
+    theta0_saving_time = timer.toc()
+
+    print >> stderr, 'optimizing...'
+
+    callback = ThetaSaver(model, every)
+    func = preTrain
+    args = (instances, total_internal_node, word_vectors, embsize, lambda_reg)
+    theta_opt = None
+    try:
+        theta_opt = lbfgs.optimize(func, theta0[0:4 * embsize * embsize + 3 * embsize], maxiter, verbose,
+                                   checking_grad,
+                                   args, callback=callback)
+    except GridentCheckingFailedError:
+        send_terminate_signal()
+        print >> stderr, 'Gradient checking failed, exit'
+        exit(-1)
+
+    print >> stderr, 'Start training rm...'
+    instances, instances_of_Unlabel, _ = prepare_data(word_vectors, instances_files, instances_file_of_Unlabel)
+    func = compute_cost_and_grad
+    args = (instances, instances_of_Unlabel, word_vectors, embsize, lambda_reg, lambda_reo)
+    try:
+        theta_opt = lbfgs.optimize(func, theta0, maxiter, verbose, checking_grad,
+                                   args, callback=callback)
+    except GridentCheckingFailedError:
+        send_terminate_signal()
+        print >> stderr, 'Gradient checking failed, exit'
+        exit(-1)
+
+    send_terminate_signal()
+    opt_time = timer.toc()
+
+    timer.tic()
+    # pickle form
+    print >> stderr, 'saving parameters to %s' % model
+    with Writer(model) as model_pickler:
+        pickle.dump(theta_opt, model_pickler)
+    # pure text form
+    with Writer(model + '.txt') as writer:
+        [writer.write('%20.8f\n' % v) for v in theta_opt]
+    thetaopt_saving_time = timer.toc()
+
+    print >> stderr, 'Init. theta0  : %10.2f s' % theta0_init_time
+    if save_theta0:
+        print >> stderr, 'Saving theta0 : %10.2f s' % theta0_saving_time
+    print >> stderr, 'Optimizing    : %10.2f s' % opt_time
+    print >> stderr, 'Saving theta  : %10.2f s' % thetaopt_saving_time
+    print >> stderr, 'Done!'
+
+    if is_Test:
+        print >> stderr, 'Start testing...'
+
+        instances, _ = prepare_data(word_vectors, instances_of_News)
+        test(instances, theta0, word_vectors)
