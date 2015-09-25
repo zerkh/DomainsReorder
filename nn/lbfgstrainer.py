@@ -226,8 +226,8 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
 
             # init recursive autoencoder
             rae = RecursiveAutoencoder.build(theta, embsize)
-            offset = RecursiveAutoencoder.compute_parameter_num()
-            rm = ReorderClassifer.build(theta[offset:], embsize)
+            offset = RecursiveAutoencoder.compute_parameter_num(embsize)
+            rm = ReorderClassifer.build(theta[offset:], embsize, rae)
 
             # compute local reconstruction error, reo and gradients
             local_error, rae_gradient, rm_gradient = process_local_batch(rm, rae, word_vectors, instances, lambda_reo)
