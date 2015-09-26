@@ -458,7 +458,7 @@ def test(instances, theta, word_vectors, isPrint=False):
 
     offset = RecursiveAutoencoder.compute_parameter_num(embsize)
 
-    rm = ReorderClassifer.build(theta, embsize, rae)
+    rm = ReorderClassifer.build(theta[offset:], embsize, rae)
 
     for instance in instances:
         words_embedded = word_vectors[instance.preWords]
