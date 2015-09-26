@@ -341,6 +341,7 @@ def prepare_rae_data(word_vectors=None, datafile=None):
     else:
         word_vectors = comm.bcast(root=0)
 
+        print "344"
         # receive data
         local_instance_strs = comm.recv(source=0)
         comm.barrier()
@@ -381,7 +382,7 @@ def prepare_data(word_vectors=None, dataFile=None):
         for i in range(1, worker_num):
             comm.send(instance_lines[offset:offset+sizes[i]], dest=i)
             offset += sizes[i]
-	comm.barrier()
+        comm.barrier()
 
         local_instance_lines = instance_lines[0:sizes[0]]
         del instance_lines
@@ -391,15 +392,15 @@ def prepare_data(word_vectors=None, dataFile=None):
         return instances, word_vectors
 
     else:
-	print "394"
+        print "394"
         word_vectors = comm.bcast(root=0)
 
-	print "398"
+        print "398"
         # receive data
         instance_lines = comm.recv(source=0)
-	print "401"
+        print "401"
         comm.barrier()
-	print "403"
+        print "403"
 
         instances = load_instances(instance_lines, word_vectors)
 
@@ -578,9 +579,6 @@ if __name__ == '__main__':
         word_vectors = WordVectors.load_vectors(word_vector_file)
         embsize = word_vectors.embsize()
 
-        print >> stderr, 'preparing data...'
-        instances, _, total_internal_node = prepare_rae_data(word_vectors, instances_files)
-
         print >> stderr, 'init. RAE parameters...'
         timer = Timer()
         timer.tic()
@@ -605,8 +603,9 @@ if __name__ == '__main__':
                 pickle.dump(theta0, theta0_writer)
         theta0_saving_time = timer.toc()
 
+        print >> stderr, 'preparing data...'
+        instances, _, total_internal_node = prepare_rae_data(word_vectors, instances_files)
         print >> stderr, 'optimizing...'
-
         callback = ThetaSaver(model, every)
         func = preTrain
         args = (instances, total_internal_node, word_vectors, embsize, lambda_reg)
