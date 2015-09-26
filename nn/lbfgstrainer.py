@@ -617,6 +617,11 @@ if __name__ == '__main__':
             print >> stderr, 'Gradient checking failed, exit'
             exit(-1)
 
+        send_terminate_signal()
+        opt_time = timer.toc()
+
+        timer.tic()
+
         print >> stderr, 'Prepare data...'
         instances, _ = prepare_data(word_vectors, instances_files)
         func = compute_cost_and_grad
