@@ -146,7 +146,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, l
         # send work signal
         send_working_signal()
 
-        #send theta
+        # send theta
         comm.Bcast([theta, MPI.DOUBLE], root=0)
 
         instances_of_test, _ = prepare_data(word_vectors, instances_of_News)
@@ -341,7 +341,6 @@ def prepare_rae_data(word_vectors=None, datafile=None):
     else:
         word_vectors = comm.bcast(root=0)
 
-        print "344"
         # receive data
         local_instance_strs = comm.recv(source=0)
         comm.barrier()
@@ -376,11 +375,11 @@ def prepare_data(word_vectors=None, dataFile=None):
         instance_num = len(instance_lines)
         esize = int(instance_num / worker_num + 0.5)
         sizes = [esize] * worker_num
-        sizes[-1] = instance_num - esize * (worker_num-1)
+        sizes[-1] = instance_num - esize * (worker_num - 1)
         offset = sizes[0]
         # send training data
         for i in range(1, worker_num):
-            comm.send(instance_lines[offset:offset+sizes[i]], dest=i)
+            comm.send(instance_lines[offset:offset + sizes[i]], dest=i)
             offset += sizes[i]
         comm.barrier()
 
@@ -390,7 +389,6 @@ def prepare_data(word_vectors=None, dataFile=None):
         instances = load_instances(local_instance_lines, word_vectors)
 
         return instances, word_vectors
-
     else:
         print "394"
         word_vectors = comm.bcast(root=0)
