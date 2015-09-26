@@ -290,8 +290,8 @@ def process_unlabeled_batch(rms, rae, word_vectors, unlabeled_instances, lambda_
         for i in range(0, worker_num):
             delta_to_left, delta_to_right = rms[i].backward_of_unlabel(softmaxLayers[i], avg_softmaxLayer, worker_num,root_prePhrase.p, root_aftPhrase.p,
                                                     rm_gradients[i])
-            rae.backward(root_prePhrase, rae_gradients, delta_to_left, isRec=True)
-            rae.backward(root_aftPhrase, rae_gradients, delta_to_right, isRec=True)
+            rae.backward(root_prePhrase, rae_gradients, delta_to_left, isRec=False)
+            rae.backward(root_aftPhrase, rae_gradients, delta_to_right, isRec=False)
 
     concat_rm_gradients = rm_gradients[0].to_row_vector()
     for i in range(1, worker_num):
