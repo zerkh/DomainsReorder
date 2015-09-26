@@ -195,7 +195,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, l
 
         total_rm_grad += reg_grad.to_row_vector()
 
-        return total_error, concatenate((total_rae_grad, total_rm_grad))
+        return final_cost, concatenate((total_rae_grad, total_rm_grad))
     else:
         while True:
             # receive signal
