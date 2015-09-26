@@ -367,13 +367,6 @@ def prepare_data(word_vectors=None, dataFile=None):
 
         instance_lines = []
 
-        # if type(dataFile) == str:
-        #     with Reader(dataFile) as file:
-        #         for line in file:
-        #             instance_lines.append(line)
-        #     instances = load_instances(instance_lines, word_vectors)
-        #     return instances, word_vectors
-
         for file in dataFile:
             with Reader(file) as file:
                 for line in file:
@@ -388,7 +381,7 @@ def prepare_data(word_vectors=None, dataFile=None):
         for i in range(1, worker_num):
             comm.send(instance_lines[offset:offset+sizes[i]], dest=i)
             offset += sizes[i]
-        comm.barrier()
+        #comm.barrier()
 
         local_instance_lines = instance_lines[0:sizes[0]]
         del instance_lines
@@ -402,7 +395,7 @@ def prepare_data(word_vectors=None, dataFile=None):
 
         # receive data
         local_instance_lines = comm.recv(source=0)
-        comm.barrier()
+        #comm.barrier()
 
         instances = load_instances(local_instance_lines, word_vectors)
 
