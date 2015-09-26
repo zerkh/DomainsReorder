@@ -319,7 +319,7 @@ class RecursiveAutoencoder(object):
     def get_zero_gradients(self):
         return self.Gradients(self)
 
-    def backward(self, root_node, total_grad, delta_parent=None,isRec=False, freq=1):
+    def backward(self, root_node, total_grad, delta_parent=None,isRec=True, freq=1):
         '''Backward pass of training recursive autoencoder using backpropagation
         through structures.
 
