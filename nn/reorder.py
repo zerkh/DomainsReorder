@@ -76,7 +76,7 @@ class ReorderClassifer(object):
         delta_to_rae = delta_to_rae[0] * cls.W1.T + delta_to_rae[1] * cls.W2.T
         embSize = len(delta_to_rae) / 2
 
-        return delta_to_rae[0:embSize], delta_to_rae[embSize:embSize * 2]
+        return delta_to_rae[0:embSize], delta_to_rae[embSize+1:embSize * 2]
 
     @classmethod
     def compute_parameter_num(cls, embsize):
