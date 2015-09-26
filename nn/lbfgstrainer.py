@@ -210,8 +210,8 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, l
 
             # init recursive autoencoder
             rae = RecursiveAutoencoder.build(theta, embsize)
-            offset = RecursiveAutoencoder.compute_parameter_num()
-            rm = ReorderClassifer.build(theta[offset:], embsize)
+            offset = RecursiveAutoencoder.compute_parameter_num(embsize)
+            rm = ReorderClassifer.build(theta[offset:], embsize, rae)
 
             # compute local reconstruction error, reo and gradients
             local_error, rae_gradient, rm_gradient = process_local_batch(rm, rae, word_vectors, instances, lambda_reo)
@@ -387,28 +387,35 @@ def prepare_data(word_vectors=None, dataFile=None):
         sizes = [esize] * worker_num
         sizes[-1] = instance_num - esize * (worker_num-1)
         offset = sizes[0]
+	print "391"
         # send training data
         for i in range(1, worker_num):
             comm.send(instance_lines[offset:offset+sizes[i]], dest=i)
             offset += sizes[i]
         comm.barrier()
+	print "396"
 
-        local_instance_strs = instance_lines[0:sizes[0]]
+        local_instance_lines = instance_lines[0:sizes[0]]
         del instance_lines
 
-        instances = load_instances(local_instance_strs, word_vectors)
+	print "401"
+        instances = load_instances(local_instance_lines, word_vectors)
 
         return instances, word_vectors
 
     else:
         word_vectors = comm.bcast(root=0)
 
+	print "409"
         # receive data
-        local_instance_strs = comm.recv(source=0)
+        local_instance_lines = comm.recv(source=0)
+	print "412"
         comm.barrier()
+	print "414"
 
-        instances = load_instances(local_instance_strs, word_vectors)
+        instances = load_instances(local_instance_lines, word_vectors)
 
+	print "418"
         return instances, word_vectors
 
 
@@ -627,7 +634,8 @@ if __name__ == '__main__':
             exit(-1)
 
         print >> stderr, 'Start training rm...'
-        instances, _ = prepare_data(word_vectors, instances_files)
+	print >> stderr, 'Prepare data...'
+        instances, _ = prepare_data(word_vectors, instances_files)	
         func = compute_cost_and_grad
         args = (instances, word_vectors, embsize, lambda_reg, lambda_reo)
         try:
