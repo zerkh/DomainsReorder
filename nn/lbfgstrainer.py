@@ -355,10 +355,11 @@ def prepare_rae_data(word_vectors=None, datafile=None, unlabel_file=None):
                     instance_strs.append(phrases[0])
                     instance_strs.append(phrases[1])
 
-        for line in unlabel_file:
-            phrases = line.split("\t")
-            instance_strs.append(phrases[0])
-            instance_strs.append(phrases[1])
+        with Reader(unlabel_file) as file:
+            for line in file:
+                phrases = line.split("\t")
+                instance_strs.append(phrases[0])
+                instance_strs.append(phrases[1])
 
         # send training data
         instance_num = len(instance_strs)

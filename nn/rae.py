@@ -319,7 +319,7 @@ class RecursiveAutoencoder(object):
     def get_zero_gradients(self):
         return self.Gradients(self)
 
-    def backward(self, root_node, total_grad, delta_parent=None, freq=1, isRec=False):
+    def backward(self, root_node, total_grad, delta_parent=None,isRec=False, freq=1):
         '''Backward pass of training recursive autoencoder using backpropagation
         through structures.
 
@@ -339,9 +339,9 @@ class RecursiveAutoencoder(object):
         else:
             delta_parent_out = delta_parent
 
-        self.__backward(root_node, total_grad, delta_parent_out, freq, isRec)
+        self.__backward(root_node, total_grad, delta_parent_out, isRec, freq)
 
-    def __backward(self, node, total_grad, delta_parent_out, freq, isRec):
+    def __backward(self, node, total_grad, delta_parent_out, isRec, freq):
         '''Backward pass of training recursive autoencoder using backpropagation
         through structures.
 
@@ -386,10 +386,10 @@ class RecursiveAutoencoder(object):
 
             # recursive
             delta_parent_out_left = dot(self.Wi1.T, delta_parent) - node.y1_minus_c1
-            self.__backward(node.left_child, total_grad, delta_parent_out_left, freq)
+            self.__backward(node.left_child, total_grad, delta_parent_out_left, isRec, freq)
 
             delta_parent_out_right = dot(self.Wi2.T, delta_parent) - node.y2_minus_c2
-            self.__backward(node.right_child, total_grad, delta_parent_out_right, freq)
+            self.__backward(node.right_child, total_grad, delta_parent_out_right, isRec, freq)
 
         elif isinstance(node, LeafNode):
             return
