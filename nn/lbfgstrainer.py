@@ -149,7 +149,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, l
         # send theta
         comm.Bcast([theta, MPI.DOUBLE], root=0)
 
-        instances_of_test, _ = prepare_data(word_vectors, instances_of_News)
+        instances_of_test, _ = prepare_test_data(word_vectors, instances_of_News)
         test(instances_of_test, theta0, word_vectors, isPrint=True)
 
         #init rae
@@ -350,6 +350,15 @@ def prepare_rae_data(word_vectors=None, datafile=None):
         total_internal_node = comm.allreduce(internal_node_num, op=MPI.SUM)
         return instances, word_vectors, total_internal_node
 
+
+def prepare_test_data(word_vectors=None, dataFile=None):
+    instance_lines = []
+    with Reader(dataFile) as file:
+        for line in file:
+            instance_lines.append(line)
+    instances = load_instances(instance_lines, word_vectors)
+
+    return instance_lines, word_vectors
 
 def prepare_data(word_vectors=None, dataFile=None):
     '''Prepare training data
@@ -656,7 +665,7 @@ if __name__ == '__main__':
         if is_Test:
             print >> stderr, 'Start testing...'
 
-            instances, _ = prepare_data(word_vectors, instances_of_News)
+            instances, _ = prepare_test_data(word_vectors, instances_of_News)
             test(instances, theta0, word_vectors, isPrint=True)
     else:
         # prepare training data
