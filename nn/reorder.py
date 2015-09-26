@@ -24,8 +24,7 @@ class ReorderClassifer(object):
 
     @classmethod
     def build(self, theta, embsize, rae):
-        raeSize = RecursiveAutoencoder.compute_parameter_num(embsize)
-        offset = raeSize
+        offset = 0
 
         W1 = theta[offset:offset + embsize*2].reshape(1, embsize*2)
         offset += embsize*2
@@ -75,6 +74,17 @@ class ReorderClassifer(object):
             delta_to_rae[1] = -1 * softmaxLayer[0]
 
         delta_to_rae = delta_to_rae[0] * cls.W1.T + delta_to_rae[1] * cls.W2.T
+        embSize = len(delta_to_rae) / 2
+
+        return delta_to_rae[0:embSize], delta_to_rae[embSize:embSize * 2]
+
+    def backward_of_unlabel(self, softmaxLayer, avg_sofymaxLayer, num_of_domains, prePhrase, aftPhrase, total_grad):
+        total_grad.gradW1 -= concatenate((prePhrase, aftPhrase)).T * softmaxLayer[0]*softmaxLayer[1]*4*(2*avg_sofymaxLayer[0]-1)/num_of_domains
+        total_grad.gradb1 -= softmaxLayer[0]*softmaxLayer[1]*4*(2*avg_sofymaxLayer[0]-1)/num_of_domains
+        delta_to_rae = softmaxLayer
+        delta_to_rae[0] = softmaxLayer[0]*softmaxLayer[1]*4*(2*avg_sofymaxLayer[0]-1)/num_of_domains * -1
+        delta_to_rae[1] = 0
+        delta_to_rae = delta_to_rae[0] * self.W1.T + delta_to_rae[1] * self.W2.T
         embSize = len(delta_to_rae) / 2
 
         return delta_to_rae[0:embSize], delta_to_rae[embSize:embSize * 2]

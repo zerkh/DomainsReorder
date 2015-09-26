@@ -158,106 +158,71 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
     Returns:
     total_cost: the value of the objective function at theta
     total_grad: the gradients of the objective function at theta
-    '''
-    if rank == 0:
-        # send work signal
-        send_working_signal()
+    '''  # init rae
+    rae = RecursiveAutoencoder.build(theta, embsize)
 
-        # send theta
-        comm.Bcast([theta, MPI.DOUBLE], root=0)
+    offset = RecursiveAutoencoder.compute_parameter_num(embsize)
+    delta = ReorderClassifer.compute_parameter_num(embsize)
 
-        # init rae
-        rae = RecursiveAutoencoder.build(theta, embsize)
+    rms = []
+    for i in range(0, worker_num):
+        rm = ReorderClassifer.build(theta[offset:offset + delta], embsize,
+                                    rae)
+        offset += ReorderClassifer.compute_parameter_num(embsize)
+        rms.append(rm)
 
-        offset = RecursiveAutoencoder.compute_parameter_num(embsize)
+    total_error = 0
+    total_rae_grad = zeros(RecursiveAutoencoder.compute_parameter_num(embsize))
+    total_rm_grad = zeros(ReorderClassifer.compute_parameter_num(embsize)*worker_num)
+    total_instance_num = 0
+    # compute local reconstruction error, reo and gradients
+    for i in range(0, worker_num):
+        local_error, rae_gradient, rm_gradient = process_local_batch(rms[i], rae, word_vectors, instances[i], lambda_reo)
+        total_error += local_error / len(instances[i])
+        total_rae_grad += rae_gradient
+        total_rm_grad[i*delta:(i+1)*delta] += rm_gradient / len(instances[i])
+        total_instance_num += len(instances[i])
 
-        rms = []
-        for i in range(0, worker_num):
-            rm = ReorderClassifer.build(theta[offset:offset + ReorderClassifer.compute_parameter_num(embsize)], embsize,
-                                        rae)
-            offset += ReorderClassifer.compute_parameter_num(embsize)
-            rms.append(rm)
+    # compute unlabeled error and gradients
+    local_unlabel_error, unlabel_rae_gradient, unlabel_rm_gradient = process_unlabeled_batch(rms, rae, word_vectors,
+                                                                                             instances_of_Unlabel,
+                                                                                             lambda_unlabel)
 
-        for i in range(1, worker_num):
-            comm.send(rms[i], dest=i)
-        comm.barrier()
-        rm = rms[0]
+    # compute total cost
+    reg = 0
+    for i in range(0, worker_num):
+        reg += rms[i].get_weights_square()
+    reg += rae.get_weights_square()
+    final_cost = total_error + lambda_unlabel * local_unlabel_error / len(instances_of_Unlabel) + lambda_reg / 2 * reg
 
-        # compute local reconstruction error, reo and gradients
-        local_error, rae_gradient, rm_gradient = process_local_batch(rm, rae, word_vectors, instances, lambda_reo)
+    total_rae_grad /= total_instance_num
 
-        # compute unlabeled error and gradients
-        local_unlabel_error, unlabel_rae_gradient, unlabel_rm_gradient = process_unlabeled_batch(rms, rae, word_vectors,
-                                                                                                 instances_of_Unlabel,
-                                                                                                 lambda_unlabel)
+    unlabel_rae_gradient /= len(instances_of_Unlabel)
+    unlabel_rm_gradient /= len(instances_of_Unlabel)
 
-        # compute total reconstruction error
-        total_error = comm.reduce(local_error, op=MPI.SUM, root=0)
+    total_rae_grad += lambda_unlabel * unlabel_rae_gradient
+    total_rm_grad += lambda_unlabel * unlabel_rm_gradient
 
-        # compute total cost
-        reg = rae.get_weights_square() + rm.get_weights_square()
-        final_cost = total_error / len(instances) + local_unlabel_error / len(instances_of_Unlabel) + lambda_reg / 2 * reg
+    # gradients related to regularizer
+    reg_grad = rae.get_zero_gradients()
+    reg_grad.gradWi1 += rae.Wi1
+    reg_grad.gradWi2 += rae.Wi2
+    reg_grad.gradWo1 += rae.Wo1
+    reg_grad.gradWo2 += rae.Wo2
+    reg_grad *= lambda_reg
 
-        # compute gradients
-        total_rae_grad = zeros_like(rae_gradient)
-        total_rm_grad = zeros_like(rm_gradient)
-        comm.Reduce([rae_gradient, MPI.DOUBLE], [total_rae_grad, MPI.DOUBLE],
-                    op=MPI.SUM, root=0)
-        comm.Reduce([rm_gradient, MPI.DOUBLE], [total_rm_grad, MPI.DOUBLE],
-                    op=MPI.SUM, root=0)
-        total_rae_grad /= len(instances)
-        total_rm_grad /= len(instances)
+    total_rae_grad += reg_grad.to_row_vector()
 
-        unlabel_rae_gradient /= len(instances_of_Unlabel)
-        unlabel_rm_gradient /= len(instances_of_Unlabel)
-
-        # gradients related to regularizer
-        reg_grad = rae.get_zero_gradients()
-        reg_grad.gradWi1 += rae.Wi1
-        reg_grad.gradWi2 += rae.Wi2
-        reg_grad.gradWo1 += rae.Wo1
-        reg_grad.gradWo2 += rae.Wo2
-        reg_grad *= lambda_reg
-
-        total_rae_grad += reg_grad.to_row_vector()
-
-        reg_grad = rm.get_zero_gradients()
+    for i in range(0, worker_num):
+        reg_grad = rms[i].get_zero_gradients()
         reg_grad.gradW1 += rm.W1
         reg_grad.gradW2 += rm.W2
         reg_grad.gradb1 += rm.b1
         reg_grad.gradb2 += rm.b2
         reg_grad *= lambda_reg
+        total_rm_grad[i*delta:(i+1)*delta] += reg_grad.to_row_vector()
 
-        total_rm_grad += reg_grad.to_row_vector()
-
-        return final_cost, concatenate((total_rae_grad, total_rm_grad))
-    else:
-        while True:
-            # receive signal
-            signal = comm.bcast(root=0)
-            if isinstance(signal, TerminatorSignal):
-                return
-            if isinstance(signal, ForceQuitSignal):
-                exit(-1)
-
-            # receive theta
-            comm.Bcast([theta, MPI.DOUBLE], root=0)
-
-            # init recursive autoencoder
-            rae = RecursiveAutoencoder.build(theta, embsize)
-            offset = RecursiveAutoencoder.compute_parameter_num(embsize)
-            rm = comm.recv(source=0)
-            comm.barrier()
-
-            # compute local reconstruction error, reo and gradients
-            local_error, rae_gradient, rm_gradient = process_local_batch(rm, rae, word_vectors, instances, lambda_reo)
-
-            # send local reconstruction error to root
-            comm.reduce(local_error, op=MPI.SUM, root=0)
-
-            # send local gradients to root
-            comm.Reduce([rae_gradient, MPI.DOUBLE], None, op=MPI.SUM, root=0)
-            comm.Reduce([rm_gradient, MPI.DOUBLE], None, op=MPI.SUM, root=0)
+    return final_cost, concatenate((total_rae_grad, total_rm_grad))
 
 
 def process_rae_local_batch(rae, word_vectors, instances):
@@ -295,25 +260,39 @@ def process_local_batch(rm, rae, word_vectors, instances, lambda_reo):
     return total_error, rae_gradients.to_row_vector(), rm_gradients.to_row_vector()
 
 
-def process_unlabeled_batch(rm, rae, word_vectors, unlabeled_instances, lambda_unlabl):
+def process_unlabeled_batch(rms, rae, word_vectors, unlabeled_instances, lambda_unlabel):
     rae_gradients = rae.get_zero_gradients()
-    rm_gradients = rm.get_zero_gradients()
+    rm_gradients = []
+    for i in range(0, worker_num):
+       rm_gradients.append(rms[i].get_zero_gradients())
     total_error = 0
     for instance in unlabeled_instances:
         words_embedded = word_vectors[instance.preWords]
         root_prePhrase, rec_error = rae.forward(words_embedded)
-        total_error += rec_error
 
         words_embedded = word_vectors[instance.aftWords]
         root_aftPhrase, rec_error = rae.forward(words_embedded)
-        total_error += rec_error
 
-        softmaxLayer, reo_error = rm.forward(instance, root_prePhrase.p, root_aftPhrase.p, embsize)
-        total_error += reo_error * lambda_reo
-        delta_to_left, delta_to_right = rm.backward(softmaxLayer, instance.order, root_prePhrase.p, root_aftPhrase.p,
-                                                    rm_gradients)
-        rae.backward(root_prePhrase, rae_gradients, delta_to_left)
-        rae.backward(root_aftPhrase, rae_gradients, delta_to_right)
+        sum_softmaxLayer = zeros(2)
+        softmaxLayers = []
+
+        for i in range(0, worker_num):
+            softmaxLayer, reo_error = rms[i].forward(instance, root_prePhrase.p, root_aftPhrase.p, embsize)
+            sum_softmaxLayer += softmaxLayer
+            softmaxLayers.append(softmaxLayer)
+
+        avg_softmaxLayer = sum_softmaxLayer / worker_num
+        total_error -= (2*avg_softmaxLayer[0]-1) * (2*avg_softmaxLayer[0]-1)
+        for i in range(0, worker_num):
+            delta_to_left, delta_to_right = rms[i].backward_of_unlabel(softmaxLayers[i], avg_softmaxLayer, worker_num,root_prePhrase.p, root_aftPhrase.p,
+                                                    rm_gradients[i])
+            rae.backward(root_prePhrase, rae_gradients, delta_to_left, isRec=True)
+            rae.backward(root_aftPhrase, rae_gradients, delta_to_right, isRec=True)
+
+    concat_rm_gradients = rm_gradients[0].to_row_vector()
+    for i in range(1, worker_num):
+        concat_rm_gradients = concatenate((concat_rm_gradients, rm_gradients[i].to_row_vector()))
+    return total_error, rae_gradients.to_row_vector(), concat_rm_gradients
 
 
 def init_theta(embsize, num_of_domains=1, _seed=None):
@@ -410,6 +389,7 @@ def prepare_rae_data(word_vectors=None, datafile=None, unlabel_file=None):
                                                           word_vectors)
         total_internal_node = comm.allreduce(internal_node_num, op=MPI.SUM)
         return instances, word_vectors, total_internal_node
+
 
 def prepare_data(word_vectors=None, dataFile=None, unlabelFile=None):
     '''Prepare training data
@@ -572,6 +552,8 @@ if __name__ == '__main__':
                         help='weight of the regularizer')
     parser.add_argument('-lambda_reo', type=float, default=0.15,
                         help='weight of the reo')
+    parser.add_argument('-lambda_unlabel', type=float, default=0.15,
+                        help='weight of the unlabeled data')
     parser.add_argument('--save-theta0', action='store_true',
                         help='save theta0 or not, for dubegging purpose')
     parser.add_argument('--checking-grad', action='store_true',
@@ -606,6 +588,7 @@ if __name__ == '__main__':
     word_vector_file = options.word_vector
     lambda_reg = options.lambda_reg
     lambda_reo = options.lambda_reo
+    lambda_unlabel = options.lambda_unlabel
     save_theta0 = options.save_theta0
     checking_grad = options.checking_grad
     maxiter = options.maxiter
@@ -681,7 +664,7 @@ if __name__ == '__main__':
         print >> stderr, 'Start training rm...'
         instances, instances_of_Unlabel, _ = prepare_data(word_vectors, instances_files, instances_file_of_Unlabel)
         func = compute_cost_and_grad
-        args = (instances, instances_of_Unlabel, word_vectors, embsize, lambda_reg, lambda_reo)
+        args = (instances, instances_of_Unlabel, word_vectors, embsize, lambda_reg, lambda_reo, lambda_unlabel)
         try:
             theta_opt = lbfgs.optimize(func, theta0, maxiter, verbose, checking_grad,
                                        args, callback=callback)
@@ -723,5 +706,5 @@ if __name__ == '__main__':
         theta = zeros((param_size, 1))
         preTrain(theta[0:4 * embsize * embsize + 3 * embsize], instances, total_internal_node,
                  word_vectors, embsize, lambda_reg)
-        # instances, word_vectors = prepare_data()
-        compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, lambda_reo)
+        # # instances, word_vectors = prepare_data()
+        # compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, lambda_reo)

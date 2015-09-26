@@ -60,3 +60,13 @@ class ReorderInstance(object):
         aftWards = [word_vector.get_word_index(word) for word in phrase]
 
         return ReorderInstance(preWords, aftWards, order)
+
+    @classmethod
+    def paser_from_unlabeled_str(cls, line, word_vector):
+        phrases = line.split("\t")
+        order = -1
+
+        preWords = [word_vector.get_word_index(word) for word in phrases[0]]
+        aftWords = [word_vector.get_word_index(word) for word in phrases[1]]
+
+        return ReorderInstance(preWords, aftWords, order)
