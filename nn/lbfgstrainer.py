@@ -381,7 +381,7 @@ def prepare_data(word_vectors=None, dataFile=None):
         for i in range(1, worker_num):
             comm.send(instance_lines[offset:offset+sizes[i]], dest=i)
             offset += sizes[i]
-        comm.barrier()
+	comm.barrier()
 
         local_instance_lines = instance_lines[0:sizes[0]]
         del instance_lines
@@ -391,11 +391,15 @@ def prepare_data(word_vectors=None, dataFile=None):
         return instances, word_vectors
 
     else:
+	print "394"
         word_vectors = comm.bcast(root=0)
 
+	print "398"
         # receive data
         instance_lines = comm.recv(source=0)
+	print "401"
         comm.barrier()
+	print "403"
 
         instances = load_instances(instance_lines, word_vectors)
 
