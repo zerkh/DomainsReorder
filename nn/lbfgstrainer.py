@@ -593,7 +593,7 @@ if __name__ == '__main__':
             _seed = None
         print >> stderr, 'seed: %s' % str(_seed)
 
-        theta0 = init_theta(embsize, num_of_domains, _seed=_seed)
+        theta0 = init_theta(embsize, _seed=_seed)
         theta0_init_time = timer.toc()
         print >> stderr, 'shape of theta0 %s' % theta0.shape
         timer.tic()
