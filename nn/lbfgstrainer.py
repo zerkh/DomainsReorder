@@ -510,7 +510,7 @@ def test(instances, theta, word_vectors, isPrint=False):
         root_aftPhrase, rec_error = rae.forward(words_embedded)
 
         if isPrint:
-            outfile.write("%f" %instances.order)
+            outfile.write("%f" %instance.order)
         prediction = 0
         vote_of_mono = 0
         for i in range(0, worker_num):
