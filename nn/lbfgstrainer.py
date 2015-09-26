@@ -685,11 +685,12 @@ if __name__ == '__main__':
             print >> stderr, 'Gradient checking failed, exit'
             exit(-1)
 
-        print >> stderr, 'Start training rm...'
+        print >> stderr, 'Prepare training data...'
         instances, instances_of_Unlabel, _ = prepare_data(word_vectors, instances_files, instances_file_of_Unlabel)
         func = compute_cost_and_grad
         args = (instances, instances_of_Unlabel, word_vectors, embsize, lambda_reg, lambda_reo, lambda_unlabel, instances_of_News)
         try:
+            print >> stderr, 'Start real training...'
             theta_opt = lbfgs.optimize(func, theta0, maxiter, verbose, checking_grad,
                                        args, callback=callback)
         except GridentCheckingFailedError:
