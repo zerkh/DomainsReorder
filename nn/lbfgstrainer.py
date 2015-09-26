@@ -411,7 +411,7 @@ def prepare_data(word_vectors=None, dataFile=None, unlabelFile=None):
         for line in unlabelFile:
             lines_of_Unlabel.append(line)
 
-        instances_of_Unlabel = [ReorderInstance.paser_from_str(i, word_vectors) for i in lines_of_Unlabel]
+        instances_of_Unlabel = [ReorderInstance.paser_from_unlabeled_str(i, word_vectors) for i in lines_of_Unlabel]
         instances_of_Unlabel = [i for i in instances_of_Unlabel if len(i.preWords) != 0 and len(i.aftWords) != 0]
 
     if type(dataFile) == str:
