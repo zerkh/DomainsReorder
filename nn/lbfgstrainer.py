@@ -381,7 +381,7 @@ def prepare_data(word_vectors=None, dataFile=None):
         for i in range(1, worker_num):
             comm.send(instance_lines[offset:offset+sizes[i]], dest=i)
             offset += sizes[i]
-        #comm.barrier()
+        comm.barrier()
 
         local_instance_lines = instance_lines[0:sizes[0]]
         del instance_lines
@@ -394,10 +394,10 @@ def prepare_data(word_vectors=None, dataFile=None):
         word_vectors = comm.bcast(root=0)
 
         # receive data
-        local_instance_lines = comm.recv(source=0)
-        #comm.barrier()
+        instance_lines = comm.recv(source=0)
+        comm.barrier()
 
-        instances = load_instances(local_instance_lines, word_vectors)
+        instances = load_instances(instance_lines, word_vectors)
 
         return instances, word_vectors
 
@@ -663,4 +663,4 @@ if __name__ == '__main__':
         preTrain(theta[0:4 * embsize * embsize + 3 * embsize], instances, total_internal_node,
                  word_vectors, embsize, lambda_reg)
         instances, word_vectors = prepare_data()
-        compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, lambda_reo)
+        compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, lambda_reo, instances_of_News)
