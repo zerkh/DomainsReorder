@@ -47,9 +47,9 @@ class ReorderClassifer(object):
         output1 = exp(output1) / (exp(output1) + exp(output2))
         output2 = 1 - output1
 
-        softmaxLayer = []
-        softmaxLayer.append(output1)
-        softmaxLayer.append(output2)
+        softmaxLayer = zeros(2)
+        softmaxLayer[0] = output1
+        softmaxLayer[1] = output2
 
         reo_error = 0
         if instance.order == 1:
