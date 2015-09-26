@@ -358,7 +358,7 @@ def prepare_test_data(word_vectors=None, dataFile=None):
             instance_lines.append(line)
     instances = load_instances(instance_lines, word_vectors)
 
-    return instance_lines, word_vectors
+    return instances, word_vectors
 
 def prepare_data(word_vectors=None, dataFile=None):
     '''Prepare training data
