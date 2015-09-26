@@ -128,7 +128,7 @@ def preTrain(theta, instances, total_internal_node_num,
             comm.Reduce([gradient_vec, MPI.DOUBLE], None, op=MPI.SUM, root=0)
 
 
-def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, lambda_reo):
+def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, lambda_reo, instances_of_News):
     '''Compute the value and gradients of the objective function at theta
 
     Args:
@@ -148,6 +148,9 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, l
 
         #send theta
         comm.Bcast([theta, MPI.DOUBLE], root=0)
+
+        instances_of_test, _ = prepare_data(word_vectors, instances_of_News)
+        test(instances_of_test, theta0, word_vectors, isPrint=True)
 
         #init rae
         rae = RecursiveAutoencoder.build(theta, embsize)
@@ -259,7 +262,7 @@ def process_local_batch(rm, rae, word_vectors, instances, lambda_reo):
     return total_error, rae_gradients.to_row_vector(), rm_gradients.to_row_vector()
 
 
-def init_theta(embsize, num_of_domains=1, _seed=None):
+def init_theta(embsize, _seed=None):
     if _seed != None:
         ori_state = get_state()
         seed(_seed)
@@ -281,12 +284,6 @@ def init_theta(embsize, num_of_domains=1, _seed=None):
     parameters.append(zeros(embsize))
     # bo2
     parameters.append(zeros(embsize))
-
-    # for i in range(0, num_of_domains):
-    # parameters.append(init_W(1, embsize*2))
-    #     parameters.append(init_W(1, embsize*2))
-    #     parameters.append(zeros(1))
-    #     parameters.append(zeros(1))
 
     parameters.append(init_W(1, embsize * 2))
     parameters.append(init_W(1, embsize * 2))
@@ -370,12 +367,12 @@ def prepare_data(word_vectors=None, dataFile=None):
 
         instance_lines = []
 
-        if type(dataFile) == str:
-            with Reader(dataFile) as file:
-                for line in file:
-                    instance_lines.append(line)
-            instances = load_instances(instance_lines, word_vectors)
-            return instances, word_vectors
+        # if type(dataFile) == str:
+        #     with Reader(dataFile) as file:
+        #         for line in file:
+        #             instance_lines.append(line)
+        #     instances = load_instances(instance_lines, word_vectors)
+        #     return instances, word_vectors
 
         for file in dataFile:
             with Reader(file) as file:
@@ -387,18 +384,15 @@ def prepare_data(word_vectors=None, dataFile=None):
         sizes = [esize] * worker_num
         sizes[-1] = instance_num - esize * (worker_num-1)
         offset = sizes[0]
-	print "391"
         # send training data
         for i in range(1, worker_num):
             comm.send(instance_lines[offset:offset+sizes[i]], dest=i)
             offset += sizes[i]
         comm.barrier()
-	print "396"
 
         local_instance_lines = instance_lines[0:sizes[0]]
         del instance_lines
 
-	print "401"
         instances = load_instances(local_instance_lines, word_vectors)
 
         return instances, word_vectors
@@ -406,16 +400,12 @@ def prepare_data(word_vectors=None, dataFile=None):
     else:
         word_vectors = comm.bcast(root=0)
 
-	print "409"
         # receive data
         local_instance_lines = comm.recv(source=0)
-	print "412"
         comm.barrier()
-	print "414"
 
         instances = load_instances(local_instance_lines, word_vectors)
 
-	print "418"
         return instances, word_vectors
 
 
@@ -456,8 +446,9 @@ def load_instances(instances_lines, word_vectors):
     return instances
 
 
-def test(instances, theta, word_vectors):
-    outfile = open('./output/test_result.txt', 'w')
+def test(instances, theta, word_vectors, isPrint=False):
+    if isPrint:
+        outfile = open('./output/test_result.txt', 'w')
     total_lines = len(instances)
     total_true = 0
 
@@ -482,10 +473,12 @@ def test(instances, theta, word_vectors):
         if instance.order == 0 and softmaxLayer[0] < softmaxLayer[1]:
             total_true += 1
 
-        outfile.write("%f\t[%f,%f]\n" % (instance.order, softmaxLayer[0], softmaxLayer[1]))
+        if isPrint:
+            outfile.write("%f\t[%f,%f]\n" % (instance.order, softmaxLayer[0], softmaxLayer[1]))
 
-    outfile.write("Total instances: %f\tTotal true predictions: %f" % (total_lines, total_true))
-    outfile.write("Precision: %f" % (float(total_true / total_lines)))
+    if isPrint:
+        outfile.write("Total instances: %f\tTotal true predictions: %f" % (total_lines, total_true))
+        outfile.write("Precision: %f" % (float(total_true / total_lines)))
 
 
 class ThetaSaver(object):
@@ -553,7 +546,6 @@ if __name__ == '__main__':
         instances_files.append(options.instances_of_Education)
     if options.instances_of_Laws != None:
         instances_files.append(options.instances_of_Laws)
-    num_of_domains = len(instances_files)
 
     model = options.model
     word_vector_file = options.word_vector
@@ -567,8 +559,6 @@ if __name__ == '__main__':
     verbose = options.verbose
     is_Test = options.isTest
     instances_of_News = options.instances_of_News
-
-    print instances_of_News
 
     if rank == 0:
         logging.basicConfig()
@@ -633,12 +623,12 @@ if __name__ == '__main__':
             print >> stderr, 'Gradient checking failed, exit'
             exit(-1)
 
-        print >> stderr, 'Start training rm...'
-	print >> stderr, 'Prepare data...'
-        instances, _ = prepare_data(word_vectors, instances_files)	
+        print >> stderr, 'Prepare data...'
+        instances, _ = prepare_data(word_vectors, instances_files)
         func = compute_cost_and_grad
-        args = (instances, word_vectors, embsize, lambda_reg, lambda_reo)
+        args = (instances, word_vectors, embsize, lambda_reg, lambda_reo, instances_of_News)
         try:
+            print >> stderr, 'Start training...'
             theta_opt = lbfgs.optimize(func, theta0, maxiter, verbose, checking_grad,
                                        args, callback=callback)
         except GridentCheckingFailedError:
@@ -670,7 +660,7 @@ if __name__ == '__main__':
             print >> stderr, 'Start testing...'
 
             instances, _ = prepare_data(word_vectors, instances_of_News)
-            test(instances, theta0, word_vectors)
+            test(instances, theta0, word_vectors, isPrint=True)
     else:
         # prepare training data
         instances, word_vectors, total_internal_node = prepare_rae_data()
