@@ -390,15 +390,11 @@ def prepare_data(word_vectors=None, dataFile=None):
 
         return instances, word_vectors
     else:
-        print "394"
         word_vectors = comm.bcast(root=0)
 
-        print "398"
         # receive data
         instance_lines = comm.recv(source=0)
-        print "401"
         comm.barrier()
-        print "403"
 
         instances = load_instances(instance_lines, word_vectors)
 
@@ -473,8 +469,10 @@ def test(instances, theta, word_vectors, isPrint=False):
             outfile.write("%f\t[%f,%f]\n" % (instance.order, softmaxLayer[0], softmaxLayer[1]))
 
     if isPrint:
-        outfile.write("Total instances: %f\tTotal true predictions: %f" % (total_lines, total_true))
+        outfile.write("Total instances: %f\tTotal true predictions: %f\t" % (total_lines, total_true))
         outfile.write("Precision: %f" % (float(total_true / total_lines)))
+    print("Total instances: %f\tTotal true predictions: %f\t" % (total_lines, total_true))
+    print("Precision: %f" % (float(total_true / total_lines)))
 
 
 class ThetaSaver(object):
@@ -668,6 +666,5 @@ if __name__ == '__main__':
         theta = zeros((param_size, 1))
         preTrain(theta[0:4 * embsize * embsize + 3 * embsize], instances, total_internal_node,
                  word_vectors, embsize, lambda_reg)
-        print "666"
         instances, word_vectors = prepare_data()
         compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, lambda_reo, instances_of_News)
