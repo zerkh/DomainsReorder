@@ -24,8 +24,7 @@ class ReorderClassifer(object):
 
     @classmethod
     def build(self, theta, embsize, rae):
-        raeSize = RecursiveAutoencoder.compute_parameter_num(embsize)
-        offset = raeSize
+        offset = 0
 
         W1 = theta[offset:offset + embsize*2].reshape(1, embsize*2)
         offset += embsize*2
