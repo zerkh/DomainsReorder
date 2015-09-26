@@ -145,7 +145,7 @@ def preTrain(theta, instances, total_internal_node_num,
 
 
 def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, embsize, lambda_reg, lambda_reo,
-                          lambda_unlabel):
+                          lambda_unlabel, instances_of_News):
     '''Compute the value and gradients of the objective function at theta
 
     Args:
@@ -158,7 +158,11 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
     Returns:
     total_cost: the value of the objective function at theta
     total_grad: the gradients of the objective function at theta
-    '''  # init rae
+    '''
+    #test per iteration
+    instances_of_test, _ = prepare_data(word_vectors, instances_of_News)
+    test(instances_of_test, theta0, word_vectors, isPrint=True)
+    # init rae
     rae = RecursiveAutoencoder.build(theta, embsize)
 
     offset = RecursiveAutoencoder.compute_parameter_num(embsize)
@@ -481,8 +485,9 @@ def load_instances(instances_lines, word_vectors):
     return instances
 
 
-def test(instances, theta, word_vectors):
-    outfile = open('./output/test_result.txt', 'w')
+def test(instances, theta, word_vectors, isPrint=False):
+    if isPrint:
+        outfile = open('./output/test_result.txt', 'w')
     total_lines = len(instances)
     total_true = 0
 
@@ -490,8 +495,12 @@ def test(instances, theta, word_vectors):
     rae = RecursiveAutoencoder.build(theta, embsize)
 
     offset = RecursiveAutoencoder.compute_parameter_num(embsize)
-
-    rm = ReorderClassifer.build(theta, embsize, rae)
+    delta = ReorderClassifer.compute_parameter_num(embsize)
+    rms = []
+    for i in range(0, worker_num):
+        rm = ReorderClassifer.build(theta[offset:offset+delta], embsize, rae)
+        offset += delta
+        rms.append(rm)
 
     for instance in instances:
         words_embedded = word_vectors[instance.preWords]
@@ -500,17 +509,30 @@ def test(instances, theta, word_vectors):
         words_embedded = word_vectors[instance.aftWords]
         root_aftPhrase, rec_error = rae.forward(words_embedded)
 
-        softmaxLayer, reo_error = rm.forward(instance, root_prePhrase.p, root_aftPhrase.p, embsize)
+        if isPrint:
+            outfile.write("%f" %instances.order)
+        prediction = 0
+        vote_of_mono = 0
+        for i in range(0, worker_num):
+            softmaxLayer, reo_error = rms[i].forward(instance, root_prePhrase.p, root_aftPhrase.p, embsize)
+            if isPrint:
+                outfile.write("  [%f,%f]" % (softmaxLayer[0], softmaxLayer[1]))
+            if softmaxLayer[0] > softmaxLayer[1]:
+                vote_of_mono += 1
+        if isPrint:
+            outfile.write("\n")
+        if vote_of_mono > worker_num/2:
+            prediction = 1
 
-        if instance.order == 1 and softmaxLayer[0] >= softmaxLayer[1]:
+        if instance.order == 1 and prediction == 1:
             total_true += 1
-        if instance.order == 0 and softmaxLayer[0] < softmaxLayer[1]:
+        if instance.order == 0 and prediction == 0:
             total_true += 1
 
-        outfile.write("%f\t[%f,%f]\n" % (instance.order, softmaxLayer[0], softmaxLayer[1]))
-
-    outfile.write("Total instances: %f\tTotal true predictions: %f" % (total_lines, total_true))
-    outfile.write("Precision: %f" % (float(total_true / total_lines)))
+    if isPrint:
+        outfile.write("Total instances: %f\tTotal true predictions: %f\t" % (total_lines, total_true))
+        outfile.write("Precision: %f" % (float(total_true / total_lines)))
+    print("Total instances: %f\tToral true predictions: %f\tPrecision: %f\n" %(total_lines, total_true, float(total_true / total_lines)))
 
 
 class ThetaSaver(object):
@@ -666,7 +688,7 @@ if __name__ == '__main__':
         print >> stderr, 'Start training rm...'
         instances, instances_of_Unlabel, _ = prepare_data(word_vectors, instances_files, instances_file_of_Unlabel)
         func = compute_cost_and_grad
-        args = (instances, instances_of_Unlabel, word_vectors, embsize, lambda_reg, lambda_reo, lambda_unlabel)
+        args = (instances, instances_of_Unlabel, word_vectors, embsize, lambda_reg, lambda_reo, lambda_unlabel, instances_of_News)
         try:
             theta_opt = lbfgs.optimize(func, theta0, maxiter, verbose, checking_grad,
                                        args, callback=callback)
@@ -699,7 +721,7 @@ if __name__ == '__main__':
             print >> stderr, 'Start testing...'
 
             instances, _ = prepare_data(word_vectors, instances_of_News)
-            test(instances, theta0, word_vectors)
+            test(instances, theta0, word_vectors, isPrint=True)
     else:
         # prepare training data
         instances, word_vectors, total_internal_node = prepare_rae_data()
