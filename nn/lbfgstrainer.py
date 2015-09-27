@@ -165,7 +165,7 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
 
         #test per iteration
         instances_of_test,_ = prepare_test_data(word_vectors, instances_of_News)
-        test(instances_of_test, theta0, word_vectors, isPrint=True)
+        test(instances_of_test, theta, word_vectors, isPrint=True)
         # init rae
         rae = RecursiveAutoencoder.build(theta, embsize)
 
