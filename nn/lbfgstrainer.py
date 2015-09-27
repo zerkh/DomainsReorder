@@ -187,7 +187,7 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
         total_rae_grad = zeros(RecursiveAutoencoder.compute_parameter_num(embsize))
         total_rm_grad = zeros(ReorderClassifer.compute_parameter_num(embsize)*worker_num)
         # compute local reconstruction error, reo and gradients
-        local_error, local_rae_gradient, local_rm_gradient = process_local_batch(local_rm, rae, word_vectors, instances[i], lambda_reo)
+        local_error, local_rae_gradient, local_rm_gradient = process_local_batch(local_rm, rae, word_vectors, instances, lambda_reo)
         total_error = comm.reduce(local_error, op=MPI.SUM, root=0)
         comm.Reduce([local_rae_gradient, MPI.DOUBLE], [total_rae_grad, MPI.DOUBLE],
                     op=MPI.SUM, root=0)
