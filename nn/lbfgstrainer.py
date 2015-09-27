@@ -174,6 +174,7 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
 
         rms = []
         local_rm = ReorderClassifer.build(theta[offset:offset+delta], embsize, rae)
+        rms.append(local_rm)
         offset += delta
         for i in range(1, worker_num):
             rm = ReorderClassifer.build(theta[offset:offset + delta], embsize,
