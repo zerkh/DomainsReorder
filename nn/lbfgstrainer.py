@@ -778,5 +778,5 @@ if __name__ == '__main__':
         theta = zeros((param_size, 1))
         preTrain(theta[0:4 * embsize * embsize + 3 * embsize], instances, total_internal_node,
                  word_vectors, embsize, lambda_reg)
-        instances, word_vectors = prepare_data()
-        compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, lambda_reo)
+        instances, instances_of_Unlabel, word_vectors = prepare_data()
+        compute_cost_and_grad(theta, instances_of_Unlabel, instances, word_vectors, embsize, lambda_reg, lambda_reo, lambda_unlabel, instances_of_News)
