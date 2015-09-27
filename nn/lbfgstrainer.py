@@ -567,21 +567,20 @@ def test(instances, theta, word_vectors, isPrint=False):
         if isPrint:
             outfile.write("%f" %instance.order)
         prediction = 0
-        vote_of_mono = 0
+        avg_softmaxLayer = zeros(2)
         for i in range(0, worker_num):
             softmaxLayer, reo_error = rms[i].forward(instance, root_prePhrase.p, root_aftPhrase.p, embsize)
             if isPrint:
                 outfile.write("  [%f,%f]" % (softmaxLayer[0], softmaxLayer[1]))
-            if softmaxLayer[0] > softmaxLayer[1]:
-                vote_of_mono += 1
+            avg_softmaxLayer += softmaxLayer
+
+        avg_softmaxLayer /= worker_num
         if isPrint:
             outfile.write("\n")
-        if vote_of_mono > worker_num/2:
-            prediction = 1
 
-        if instance.order == 1 and prediction == 1:
+        if instance.order == 1 and avg_softmaxLayer[0] > avg_softmaxLayer[1]:
             total_true += 1
-        if instance.order == 0 and prediction == 0:
+        if instance.order == 0 and avg_softmaxLayer[0] < avg_softmaxLayer[1]:
             total_true += 1
 
     if isPrint:
@@ -781,7 +780,7 @@ if __name__ == '__main__':
         if is_Test:
             print >> stderr, 'Start testing...'
 
-            instances, _ = prepare_data(word_vectors, instances_of_News)
+            instances, _ = prepare_test_data(word_vectors, instances_of_News)
             test(instances, theta0, word_vectors, isPrint=True)
     else:
         # prepare training data
