@@ -159,74 +159,100 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
     total_cost: the value of the objective function at theta
     total_grad: the gradients of the objective function at theta
     '''
-    #test per iteration
-    instances_of_test, _ = prepare_data(word_vectors, instances_of_News)
-    test(instances_of_test, theta0, word_vectors, isPrint=True)
-    # init rae
-    rae = RecursiveAutoencoder.build(theta, embsize)
+    if rank == 0:
+        #test per iteration
+        instances_of_test, _ = prepare_data(word_vectors, instances_of_News)
+        test(instances_of_test, theta0, word_vectors, isPrint=True)
+        # init rae
+        rae = RecursiveAutoencoder.build(theta, embsize)
 
-    offset = RecursiveAutoencoder.compute_parameter_num(embsize)
-    delta = ReorderClassifer.compute_parameter_num(embsize)
+        offset = RecursiveAutoencoder.compute_parameter_num(embsize)
+        delta = ReorderClassifer.compute_parameter_num(embsize)
 
-    rms = []
-    for i in range(0, worker_num):
-        rm = ReorderClassifer.build(theta[offset:offset + delta], embsize,
-                                    rae)
-        offset += ReorderClassifer.compute_parameter_num(embsize)
-        rms.append(rm)
+        rms = []
+        local_rm = ReorderClassifer.build(theta[offset:offset+delta], embsize, rae)
+        offset += delta
+        for i in range(1, worker_num):
+            rm = ReorderClassifer.build(theta[offset:offset + delta], embsize,
+                                        rae)
+            offset += delta
+            comm.send(rae, dest=i)
+            comm.send(rm, dest=i)
+            rms.append(rm)
+        comm.barrier()
 
-    total_error = 0
-    total_rae_grad = zeros(RecursiveAutoencoder.compute_parameter_num(embsize))
-    total_rm_grad = zeros(ReorderClassifer.compute_parameter_num(embsize)*worker_num)
-    total_instance_num = 0
-    # compute local reconstruction error, reo and gradients
-    for i in range(0, worker_num):
-        local_error, rae_gradient, rm_gradient = process_local_batch(rms[i], rae, word_vectors, instances[i], lambda_reo)
-        total_error += local_error / len(instances[i])
-        total_rae_grad += rae_gradient
-        total_rm_grad[i*delta:(i+1)*delta] += rm_gradient / len(instances[i])
-        total_instance_num += len(instances[i])
+        total_rae_grad = zeros(RecursiveAutoencoder.compute_parameter_num(embsize))
+        total_rm_grad = zeros(ReorderClassifer.compute_parameter_num(embsize)*worker_num)
+        # compute local reconstruction error, reo and gradients
+        local_error, local_rae_gradient, local_rm_gradient = process_local_batch(local_rm, rae, word_vectors, instances[i], lambda_reo)
+        total_error = comm.reduce(local_error, op=MPI.SUM, root=0)
+        comm.Reduce([local_rae_gradient, MPI.DOUBLE], [total_rae_grad, MPI.DOUBLE],
+                    op=MPI.SUM, root=0)
 
-    # compute unlabeled error and gradients
-    local_unlabel_error, unlabel_rae_gradient, unlabel_rm_gradient = process_unlabeled_batch(rms, rae, word_vectors,
-                                                                                             instances_of_Unlabel,
-                                                                                             lambda_unlabel)
+        total_rm_grad[0:delta] += local_rm_gradient
+        for i in range(1, worker_num):
+            local_rm_gradient = comm.recv(source=i)
+            total_rm_grad[i*delta:(i+1)*delta] += local_rm_gradient
 
-    # compute total cost
-    reg = 0
-    for i in range(0, worker_num):
-        reg += rms[i].get_weights_square()
-    reg += rae.get_weights_square()
-    final_cost = total_error + lambda_unlabel * local_unlabel_error / len(instances_of_Unlabel) + lambda_reg / 2 * reg
+        # compute unlabeled error and gradients
+        local_unlabel_error, unlabel_rae_gradient, unlabel_rm_gradient = process_unlabeled_batch(rms, rae, word_vectors,
+                                                                                                 instances_of_Unlabel,
+                                                                                                 lambda_unlabel)
 
-    total_rae_grad /= total_instance_num
+        # compute total cost
+        reg = 0
+        for i in range(0, worker_num):
+            reg += rms[i].get_weights_square()
+        reg += rae.get_weights_square()
+        final_cost = total_error + lambda_unlabel * local_unlabel_error / len(instances_of_Unlabel) + lambda_reg / 2 * reg
 
-    unlabel_rae_gradient /= len(instances_of_Unlabel)
-    unlabel_rm_gradient /= len(instances_of_Unlabel)
+        unlabel_rae_gradient /= len(instances_of_Unlabel)
+        unlabel_rm_gradient /= len(instances_of_Unlabel)
 
-    total_rae_grad += lambda_unlabel * unlabel_rae_gradient
-    total_rm_grad += lambda_unlabel * unlabel_rm_gradient
+        total_rae_grad += lambda_unlabel * unlabel_rae_gradient
+        total_rm_grad += lambda_unlabel * unlabel_rm_gradient
 
-    # gradients related to regularizer
-    reg_grad = rae.get_zero_gradients()
-    reg_grad.gradWi1 += rae.Wi1
-    reg_grad.gradWi2 += rae.Wi2
-    reg_grad.gradWo1 += rae.Wo1
-    reg_grad.gradWo2 += rae.Wo2
-    reg_grad *= lambda_reg
-
-    total_rae_grad += reg_grad.to_row_vector()
-
-    for i in range(0, worker_num):
-        reg_grad = rms[i].get_zero_gradients()
-        reg_grad.gradW1 += rm.W1
-        reg_grad.gradW2 += rm.W2
-        reg_grad.gradb1 += rm.b1
-        reg_grad.gradb2 += rm.b2
+        # gradients related to regularizer
+        reg_grad = rae.get_zero_gradients()
+        reg_grad.gradWi1 += rae.Wi1
+        reg_grad.gradWi2 += rae.Wi2
+        reg_grad.gradWo1 += rae.Wo1
+        reg_grad.gradWo2 += rae.Wo2
         reg_grad *= lambda_reg
-        total_rm_grad[i*delta:(i+1)*delta] += reg_grad.to_row_vector()
 
-    return final_cost, concatenate((total_rae_grad, total_rm_grad))
+        total_rae_grad += reg_grad.to_row_vector()
+
+        for i in range(0, worker_num):
+            reg_grad = local_rm.get_zero_gradients()
+            reg_grad.gradW1 += rms[i].W1
+            reg_grad.gradW2 += rms[i].W2
+            reg_grad.gradb1 += rms[i].b1
+            reg_grad.gradb2 += rms[i].b2
+            reg_grad *= lambda_reg
+            total_rm_grad[i*delta:(i+1)*delta] += reg_grad.to_row_vector()
+
+        return final_cost, concatenate((total_rae_grad, total_rm_grad))
+    else:
+        while True:
+            signal = comm.bcast(source=0)
+            if isinstance(signal, TerminatorSignal):
+                return
+            if isinstance(signal, ForceQuitSignal):
+                exit(-1)
+
+            rae = comm.recv(source=0)
+            local_rm = comm.recv(source=0)
+            comm.barrier()
+
+            local_error, local_rae_grad, local_rm_grad = process_local_batch(local_rm, rae, word_vectors, instances, lambda_reo)
+            local_error /= len(instances)
+            local_rae_grad /= len(instances)
+            local_rm_grad /= len(instances)
+
+            comm.reduce(local_error, op=MPI.SUM, root=0)
+            comm.Reduce([local_rae_grad, MPI.DOUBLE], None, op=MPI.SUM, root=0)
+            comm.send(local_rm_grad, dest=0)
+            comm.barrier()
 
 
 def process_rae_local_batch(rae, word_vectors, instances):
@@ -406,47 +432,63 @@ def prepare_data(word_vectors=None, dataFile=None, unlabelFile=None):
     instances: a list of ReorderInstance
     word_vectors
     '''
-    instance_of_domain = []
-    instance_lines = []
-    lines_of_Unlabel = []
-    instances_of_Unlabel = []
+    if rank == 0:
+        comm.bcast(word_vectors, root=0)
 
-    if unlabelFile != None:
-        with Reader(unlabelFile) as file:
-            for line in file:
-                lines_of_Unlabel.append(line)
+        instance_of_domain = []
+        instance_lines = []
+        lines_of_Unlabel = []
+        instances_of_Unlabel = []
 
-        instances_of_Unlabel = [ReorderInstance.paser_from_unlabeled_str(i, word_vectors) for i in lines_of_Unlabel]
-        instances_of_Unlabel = [i for i in instances_of_Unlabel if len(i.preWords) != 0 and len(i.aftWords) != 0]
+        if unlabelFile != None:
+            with Reader(unlabelFile) as file:
+                for line in file:
+                    lines_of_Unlabel.append(line)
 
-    if type(dataFile) == str:
-        with Reader(dataFile) as file:
-            for line in file:
-                instance_of_domain.append(line)
-        instances = load_instances(instance_of_domain, word_vectors)
+            instances_of_Unlabel = [ReorderInstance.paser_from_unlabeled_str(i, word_vectors) for i in lines_of_Unlabel]
+            instances_of_Unlabel = [i for i in instances_of_Unlabel if len(i.preWords) != 0 and len(i.aftWords) != 0]
+
+        comm.Bcast(instances_of_Unlabel, root=0)
+
+        # if type(dataFile) == str:
+        #     with Reader(dataFile) as file:
+        #         for line in file:
+        #             instance_of_domain.append(line)
+        #     instances = load_instances(instance_of_domain, word_vectors)
+        #     if unlabelFile != None:
+        #         return instances, instances_of_Unlabel, word_vectors
+        #     return instances, word_vectors
+
+        for file in dataFile:
+            with Reader(file) as file:
+                for line in file:
+                    instance_of_domain.append(line)
+            instance_lines.append(instance_of_domain)
+            instance_of_domain = []
+
+        for i in range(1, worker_num):
+            comm.send(instance_lines[i], dest=i)
+        comm.barrier()
+
+        instances = load_instances(instance_lines[0], word_vectors)
+
+        del instance_lines
+
         if unlabelFile != None:
             return instances, instances_of_Unlabel, word_vectors
+
         return instances, word_vectors
+    else:
+        word_vectors = comm.bcast(root=0)
+        instances_of_Unlabel = comm.Bcast(root=0)
 
-    for file in dataFile:
-        with Reader(file) as file:
-            for line in file:
-                instance_of_domain.append(line)
-        instance_lines.append(instance_of_domain)
-        instance_of_domain = []
+        instances_lines = comm.recv(source=0)
+        comm.barrier()
 
-    instances_of_domains = []
-    for i in range(0, len(instance_lines)):
-        instances = load_instances(instance_lines[i], word_vectors)
-        instances_of_domains.append(instances)
-
-    del instance_lines
-
-    if unlabelFile != None:
-        return instances_of_domains, instances_of_Unlabel, word_vectors
-
-    return instances_of_domains, word_vectors
-
+        instances = load_instances(instances_lines, word_vectors)
+        if unlabelFile != None:
+            return instances, instances_of_Unlabel, word_vectors
+        return  instances, word_vectors
 
 def load_rae_instances(instance_strs, word_vectors):
     '''Load rae training examples
@@ -685,6 +727,11 @@ if __name__ == '__main__':
             print >> stderr, 'Gradient checking failed, exit'
             exit(-1)
 
+        send_terminate_signal()
+        opt_time = timer.toc()
+
+        timer.tic()
+
         print >> stderr, 'Prepare training data...'
         instances, instances_of_Unlabel, _ = prepare_data(word_vectors, instances_files, instances_file_of_Unlabel)
         func = compute_cost_and_grad
@@ -731,5 +778,5 @@ if __name__ == '__main__':
         theta = zeros((param_size, 1))
         preTrain(theta[0:4 * embsize * embsize + 3 * embsize], instances, total_internal_node,
                  word_vectors, embsize, lambda_reg)
-        # # instances, word_vectors = prepare_data()
-        # compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, lambda_reo)
+        instances, word_vectors = prepare_data()
+        compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, lambda_reo)
