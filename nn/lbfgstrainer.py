@@ -164,7 +164,7 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
         send_working_signal()
 
         #test per iteration
-        instances_of_test, _ = prepare_data(word_vectors, instances_of_News)
+        instances_of_test,_,_ = prepare_data(word_vectors, instances_of_News)
         test(instances_of_test, theta0, word_vectors, isPrint=True)
         # init rae
         rae = RecursiveAutoencoder.build(theta, embsize)
@@ -237,7 +237,7 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
         return final_cost, concatenate((total_rae_grad, total_rm_grad))
     else:
         while True:
-            signal = comm.bcast(source=0)
+            signal = comm.bcast(root=0)
             if isinstance(signal, TerminatorSignal):
                 return
             if isinstance(signal, ForceQuitSignal):
