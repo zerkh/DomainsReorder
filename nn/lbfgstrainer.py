@@ -160,6 +160,9 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
     total_grad: the gradients of the objective function at theta
     '''
     if rank == 0:
+        # send working signal
+        send_working_signal()
+
         #test per iteration
         instances_of_test, _ = prepare_data(word_vectors, instances_of_News)
         test(instances_of_test, theta0, word_vectors, isPrint=True)
