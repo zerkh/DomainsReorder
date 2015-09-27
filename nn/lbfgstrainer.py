@@ -164,7 +164,7 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
         send_working_signal()
 
         #test per iteration
-        instances_of_test,_,_ = prepare_data(word_vectors, instances_of_News)
+        instances_of_test,_ = prepare_test_data(word_vectors, instances_of_News)
         test(instances_of_test, theta0, word_vectors, isPrint=True)
         # init rae
         rae = RecursiveAutoencoder.build(theta, embsize)
@@ -492,6 +492,15 @@ def prepare_data(word_vectors=None, dataFile=None, unlabelFile=None):
         if unlabelFile != None:
             return instances, instances_of_Unlabel, word_vectors
         return  instances, None, word_vectors
+
+def prepare_test_data(word_vectors=None, dataFile=None):
+    instance_lines = []
+    with Reader(dataFile) as file:
+        for line in file:
+            instance_lines.append(line)
+    instances = load_instances(instance_lines, word_vectors)
+
+    return instances, word_vectors
 
 def load_rae_instances(instance_strs, word_vectors):
     '''Load rae training examples
