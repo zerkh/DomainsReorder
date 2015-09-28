@@ -516,7 +516,7 @@ if __name__ == '__main__':
     parser.add_argument('-instances_of_Thesis', required=False)
     parser.add_argument('-instances_of_Science', required=False)
     parser.add_argument('-instances_of_Spoken', required=False)
-    parser.add_argument('-isTest', type=bool, default=True)
+    parser.add_argument('-isTest', type=int, default=1)
     parser.add_argument('-instances_of_News', required=False)
     parser.add_argument('-model', required=True,
                         help='model name')
