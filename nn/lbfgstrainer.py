@@ -157,7 +157,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, l
 
         offset = RecursiveAutoencoder.compute_parameter_num(embsize)
 
-        rm = ReorderClassifer.build(theta, embsize, rae)
+        rm = ReorderClassifer.build(theta[offset:], embsize, rae)
 
         #compute local reconstruction error, reo and gradients
         local_error, rae_gradient, rm_gradient = process_local_batch(rm, rae, word_vectors, instances, lambda_reo)
@@ -177,6 +177,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, l
         comm.Reduce([rm_gradient, MPI.DOUBLE], [total_rm_grad, MPI.DOUBLE],
                     op=MPI.SUM, root=0)
         total_rae_grad /= len(instances)
+        total_rae_grad *= 2
         total_rm_grad /= len(instances)
 
         # gradients related to regularizer
