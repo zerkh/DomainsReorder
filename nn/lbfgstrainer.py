@@ -128,7 +128,7 @@ def preTrain(theta, instances, total_internal_node_num,
             comm.Reduce([gradient_vec, MPI.DOUBLE], None, op=MPI.SUM, root=0)
 
 
-def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, lambda_reo, instances_of_News):
+def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, lambda_reo, instances_of_News, is_Test):
     '''Compute the value and gradients of the objective function at theta
 
     Args:
@@ -149,8 +149,9 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, l
         # send theta
         comm.Bcast([theta, MPI.DOUBLE], root=0)
 
-        instances_of_test, _ = prepare_test_data(word_vectors, instances_of_News)
-        test(instances_of_test, theta, word_vectors, isPrint=True)
+        if is_Test:
+            instances_of_test, _ = prepare_test_data(word_vectors, instances_of_News)
+            test(instances_of_test, theta, word_vectors, isPrint=True)
 
         #init rae
         rae = RecursiveAutoencoder.build(theta, embsize)
@@ -633,7 +634,7 @@ if __name__ == '__main__':
         print >> stderr, 'Prepare data...'
         instances, _ = prepare_data(word_vectors, instances_files)
         func = compute_cost_and_grad
-        args = (instances, word_vectors, embsize, lambda_reg, lambda_reo, instances_of_News)
+        args = (instances, word_vectors, embsize, lambda_reg, lambda_reo, instances_of_News, is_Test)
         try:
             print >> stderr, 'Start training...'
             theta_opt = lbfgs.optimize(func, theta0, maxiter, verbose, checking_grad,
@@ -663,11 +664,10 @@ if __name__ == '__main__':
         print >> stderr, 'Saving theta  : %10.2f s' % thetaopt_saving_time
         print >> stderr, 'Done!'
 
-        if is_Test:
-            print >> stderr, 'Start testing...'
+        print >> stderr, 'Start testing...'
 
-            instances, _ = prepare_test_data(word_vectors, instances_of_News)
-            test(instances, theta_opt, word_vectors, isPrint=False)
+        instances, _ = prepare_test_data(word_vectors, instances_of_News)
+        test(instances, theta_opt, word_vectors, isPrint=False)
     else:
         # prepare training data
         instances, word_vectors, total_internal_node = prepare_rae_data()
