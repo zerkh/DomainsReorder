@@ -150,7 +150,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_reg, l
         comm.Bcast([theta, MPI.DOUBLE], root=0)
 
         instances_of_test, _ = prepare_test_data(word_vectors, instances_of_News)
-        test(instances_of_test, theta0, word_vectors, isPrint=True)
+        test(instances_of_test, theta, word_vectors, isPrint=True)
 
         #init rae
         rae = RecursiveAutoencoder.build(theta, embsize)
@@ -667,7 +667,7 @@ if __name__ == '__main__':
             print >> stderr, 'Start testing...'
 
             instances, _ = prepare_test_data(word_vectors, instances_of_News)
-            test(instances, theta0, word_vectors, isPrint=True)
+            test(instances, theta_opt, word_vectors, isPrint=False)
     else:
         # prepare training data
         instances, word_vectors, total_internal_node = prepare_rae_data()
