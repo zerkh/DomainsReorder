@@ -621,7 +621,7 @@ if __name__ == '__main__':
     parser.add_argument('-instances_of_Science', required=False)
     parser.add_argument('-instances_of_Spoken', required=False)
     parser.add_argument('-instances_of_Unlabel', required=False)
-    parser.add_argument('-isTest', required=False, default=True)
+    parser.add_argument('-isTest', type=bool, required=False, default=True)
     parser.add_argument('-instances_of_News', required=False)
     parser.add_argument('-model', required=True,
                         help='model name')
