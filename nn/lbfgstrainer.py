@@ -145,7 +145,7 @@ def preTrain(theta, instances, total_internal_node_num,
 
 
 def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, embsize, lambda_reg, lambda_reo,
-                          lambda_unlabel, instances_of_News):
+                          lambda_unlabel, instances_of_News, isTest):
     '''Compute the value and gradients of the objective function at theta
 
     Args:
@@ -163,9 +163,10 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
         # send working signal
         send_working_signal()
 
-        #test per iteration
-        instances_of_test,_ = prepare_test_data(word_vectors, instances_of_News)
-        test(instances_of_test, theta, word_vectors, isPrint=True)
+        if is_Test:
+            #test per iteration
+            instances_of_test,_ = prepare_test_data(word_vectors, instances_of_News)
+            test(instances_of_test, theta, word_vectors, isPrint=True)
         # init rae
         rae = RecursiveAutoencoder.build(theta, embsize)
 
@@ -747,7 +748,7 @@ if __name__ == '__main__':
         print >> stderr, 'Prepare training data...'
         instances, instances_of_Unlabel, _ = prepare_data(word_vectors, instances_files, instances_file_of_Unlabel)
         func = compute_cost_and_grad
-        args = (instances, instances_of_Unlabel, word_vectors, embsize, lambda_reg, lambda_reo, lambda_unlabel, instances_of_News)
+        args = (instances, instances_of_Unlabel, word_vectors, embsize, lambda_reg, lambda_reo, lambda_unlabel, instances_of_News, is_Test)
         try:
             print >> stderr, 'Start real training...'
             theta_opt = lbfgs.optimize(func, theta0, maxiter, verbose, checking_grad,
@@ -777,11 +778,10 @@ if __name__ == '__main__':
         print >> stderr, 'Saving theta  : %10.2f s' % thetaopt_saving_time
         print >> stderr, 'Done!'
 
-        if is_Test:
-            print >> stderr, 'Start testing...'
+        print >> stderr, 'Start testing...'
 
-            instances, _ = prepare_test_data(word_vectors, instances_of_News)
-            test(instances, theta_opt, word_vectors, isPrint=False)
+        instances, _ = prepare_test_data(word_vectors, instances_of_News)
+        test(instances, theta_opt, word_vectors, isPrint=False)
     else:
         # prepare training data
         instances, word_vectors, total_internal_node = prepare_rae_data()
