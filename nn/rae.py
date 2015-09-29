@@ -323,7 +323,7 @@ class RecursiveAutoencoder(object):
   def get_zero_gradients(self):
     return self.Gradients(self)
   
-  def backward(self, root_node, total_grad, delta_parent=None, freq=1):
+  def backward(self, root_node, total_grad, delta_parent=None, freq=1, isRec=True):
     '''Backward pass of training recursive autoencoder using backpropagation
     through structures.
     
@@ -343,9 +343,9 @@ class RecursiveAutoencoder(object):
     else:
       delta_parent_out = delta_parent
       
-    self.__backward(root_node, total_grad, delta_parent_out, freq)
+    self.__backward(root_node, total_grad, delta_parent_out, freq, isRec)
   
-  def __backward(self, node, total_grad, delta_parent_out, freq):
+  def __backward(self, node, total_grad, delta_parent_out, freq, isRec):
     '''Backward pass of training recursive autoencoder using backpropagation
     through structures.
     
@@ -360,22 +360,26 @@ class RecursiveAutoencoder(object):
       None
     '''
     if isinstance(node, InternalNode):
-      # reconstruction layer
-      jcob1 = self.f_norm1_prime(node.y1_unnormalized)
-      delta_out1 = dot(jcob1, node.y1_minus_c1)
 
-      jcob2 = self.f_norm1_prime(node.y2_unnormalized)
-      delta_out2 = dot(jcob2, node.y2_minus_c2)
+      if isRec:
+          # reconstruction layer
+          jcob1 = self.f_norm1_prime(node.y1_unnormalized)
+          delta_out1 = dot(jcob1, node.y1_minus_c1)
 
-      total_grad.gradWo1 += dot(delta_out1, node.p.T) * freq
-      total_grad.gradWo2 += dot(delta_out2, node.p.T) * freq
-      total_grad.gradbo1 += delta_out1 * freq
-      total_grad.gradbo2 += delta_out2 * freq
-      
-      # encoder layer
-      delta_sum = dot(self.Wo1.T, delta_out1)\
-                  + dot(self.Wo2.T, delta_out2)\
-                  + delta_parent_out
+          jcob2 = self.f_norm1_prime(node.y2_unnormalized)
+          delta_out2 = dot(jcob2, node.y2_minus_c2)
+
+          total_grad.gradWo1 += dot(delta_out1, node.p.T) * freq
+          total_grad.gradWo2 += dot(delta_out2, node.p.T) * freq
+          total_grad.gradbo1 += delta_out1 * freq
+          total_grad.gradbo2 += delta_out2 * freq
+
+          # encoder layer
+          delta_sum = dot(self.Wo1.T, delta_out1)\
+                      + dot(self.Wo2.T, delta_out2)\
+                      + delta_parent_out
+      else:
+          delta_sum = delta_parent_out
 
       delta_parent = dot(self.f_norm1_prime(node.p_unnormalized), delta_sum)
       
