@@ -319,6 +319,16 @@ class RecursiveAutoencoder(object):
       self.gradbo1 *= other
       self.gradbo2 *= other
       return self
+
+    def __add__(self, other):
+      self.gradWi1 += other.gradWi1
+      self.gradWi2 += other.gradWi2
+      self.gradbi += other.gradbi
+      self.gradWo1 += other.gradWo1
+      self.gradWo2 += other.gradWo2
+      self.gradbo1 += other.gradbo1
+      self.gradbo2 += other.gradbo2
+      return self
       
   def get_zero_gradients(self):
     return self.Gradients(self)
