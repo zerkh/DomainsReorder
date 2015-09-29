@@ -222,7 +222,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_rec, l
             rm = ReorderClassifer.build(theta[offset:], embsize, rae)
 
             # compute local reconstruction error, reo and gradients
-            local_error, rae_gradient, rm_gradient = process_local_batch(rm, rae, word_vectors, instances, lambda_reo)
+            local_error, rae_gradient, rm_gradient = process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo)
 
             # send local reconstruction error to root
             comm.reduce(local_error, op=MPI.SUM, root=0)
@@ -260,7 +260,8 @@ def process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo
 
         rae.backward(root_prePhrase, tmp_rae_gradients)
         rae.backward(root_aftPhrase, tmp_rae_gradients)
-        rae_gradients += lambda_rec * tmp_rae_gradients
+        tmp_rae_gradients *= lambda_rec
+        rae_gradients += tmp_rae_gradients
 
         softmaxLayer, reo_error = rm.forward(instance, root_prePhrase.p, root_aftPhrase.p, embsize)
         total_error += reo_error * lambda_reo
@@ -269,7 +270,8 @@ def process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo
         tmp_rae_gradients = rae.get_zero_gradients()
         rae.backward(root_prePhrase, tmp_rae_gradients, delta_to_left, isRec=False)
         rae.backward(root_aftPhrase, tmp_rae_gradients, delta_to_right, isRec=False)
-        rae_gradients += lambda_reo * tmp_rae_gradients
+        tmp_rae_gradients *= lambda_rec
+        rae_gradients += tmp_rae_gradients
     rm_gradients *= lambda_reo
 
     return total_error, rae_gradients.to_row_vector(), rm_gradients.to_row_vector()
