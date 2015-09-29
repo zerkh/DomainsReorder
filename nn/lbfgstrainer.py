@@ -270,7 +270,7 @@ def process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo
         tmp_rae_gradients = rae.get_zero_gradients()
         rae.backward(root_prePhrase, tmp_rae_gradients, delta_to_left, isRec=False)
         rae.backward(root_aftPhrase, tmp_rae_gradients, delta_to_right, isRec=False)
-        tmp_rae_gradients *= lambda_rec
+        tmp_rae_gradients *= lambda_reo
         rae_gradients += tmp_rae_gradients
     rm_gradients *= lambda_reo
 
