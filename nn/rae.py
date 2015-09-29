@@ -389,10 +389,10 @@ class RecursiveAutoencoder(object):
       
       # recursive
       delta_parent_out_left = dot(self.Wi1.T, delta_parent) - node.y1_minus_c1
-      self.__backward(node.left_child, total_grad, delta_parent_out_left, freq)
+      self.__backward(node.left_child, total_grad, delta_parent_out_left, freq, isRec)
       
       delta_parent_out_right = dot(self.Wi2.T, delta_parent) - node.y2_minus_c2
-      self.__backward(node.right_child, total_grad, delta_parent_out_right, freq)
+      self.__backward(node.right_child, total_grad, delta_parent_out_right, freq, isRec)
     elif isinstance(node, LeafNode):
       return
     else:
