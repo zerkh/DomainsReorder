@@ -199,6 +199,7 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
         total_rm_grad[0:delta] += local_rm_gradient
         for i in range(1, worker_num):
             local_rm_gradient = comm.recv(source=i)
+            comm.barrier()
             total_rm_grad[i*delta:(i+1)*delta] += local_rm_gradient
 
         # compute unlabeled error and gradients
