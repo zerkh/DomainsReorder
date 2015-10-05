@@ -83,7 +83,7 @@ class RecursiveAutoencoder(object):
           theta: parameter vector
           embsize: dimension of word embedding vector
         '''
-        #assert(theta.size == cls.compute_parameter_num(embsize))
+        # assert(theta.size == cls.compute_parameter_num(embsize))
         offset = 0
         sz = embsize * embsize
         Wi1 = theta[offset:offset + sz].reshape(embsize, embsize)
@@ -316,10 +316,20 @@ class RecursiveAutoencoder(object):
             self.gradbo2 *= other
             return self
 
+        def __add__(self, other):
+            self.gradWi1 += other.gradWi1
+            self.gradWi2 += other.gradWi2
+            self.gradbi += other.gradbi
+            self.gradWo1 += other.gradWo1
+            self.gradWo2 += other.gradWo2
+            self.gradbo1 += other.gradbo1
+            self.gradbo2 += other.gradbo2
+            return self
+
     def get_zero_gradients(self):
         return self.Gradients(self)
 
-    def backward(self, root_node, total_grad, delta_parent=None,isRec=True, freq=1):
+    def backward(self, root_node, total_grad, delta_parent=None, isRec=True, freq=1):
         '''Backward pass of training recursive autoencoder using backpropagation
         through structures.
 
@@ -397,6 +407,7 @@ class RecursiveAutoencoder(object):
         else:
             msg = 'node should be an instance of InternalNode or LeafNode';
             raise TypeError(msg)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

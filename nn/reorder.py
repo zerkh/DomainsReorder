@@ -140,6 +140,13 @@ class ReorderClassifer(object):
             self.gradb1 *= other
             self.gradb2 *= other
             return self
+        
+        def __add__(self, other):
+            self.gradW1 += other.gradW1
+            self.gradW2 += other.gradW2
+            self.gradb1 += other.gradb1
+            self.gradb2 += other.gradb2
+            return self
 
     def get_zero_gradients(self):
         return self.Gradient(self)
