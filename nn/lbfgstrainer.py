@@ -181,7 +181,6 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_rec, l
         comm.Reduce([rm_gradient, MPI.DOUBLE], [total_rm_grad, MPI.DOUBLE],
                     op=MPI.SUM, root=0)
         total_rae_grad /= len(instances)
-        total_rae_grad *= 2
         total_rm_grad /= len(instances)
 
         # gradients related to regularizer
