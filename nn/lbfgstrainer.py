@@ -254,7 +254,7 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
             local_rm = comm.recv(source=0)
             comm.barrier()
 
-            local_error, local_rae_grad, local_rm_grad = process_local_batch(local_rm, rae, word_vectors, instances, lambda_reo)
+            local_error, local_rae_grad, local_rm_grad = process_local_batch(local_rm, rae, word_vectors, instances, lambda_rec, lambda_reo)
             local_error /= len(instances)
             local_rae_grad /= len(instances)
             local_rm_grad /= len(instances)
