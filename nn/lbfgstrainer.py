@@ -13,6 +13,7 @@ import cPickle as pickle
 from numpy import concatenate, zeros_like, zeros
 from numpy.random import get_state, set_state, seed
 from mpi4py import MPI
+import random
 
 from ioutil import Writer
 from ioutil import getPhrases
@@ -154,6 +155,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, lambda_rec, l
 
         if is_Test:
             instances_of_test, _ = prepare_test_data(word_vectors, instances_of_News)
+            instances_of_test = random.sample(instances_of_test, 500)
             test(instances_of_test, theta, word_vectors, isPrint=True)
 
         #init rae
