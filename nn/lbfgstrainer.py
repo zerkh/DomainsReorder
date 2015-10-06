@@ -145,7 +145,7 @@ def preTrain(theta, instances, total_internal_node_num,
             comm.Reduce([gradient_vec, MPI.DOUBLE], None, op=MPI.SUM, root=0)
 
 
-def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, embsize, lambda_rec, lambda_reg, lambda_reo,
+def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, embsize, total_internal_node, lambda_rec, lambda_reg, lambda_reo,
                           lambda_unlabel, instances_of_News, is_Test):
     '''Compute the value and gradients of the objective function at theta
 
@@ -188,18 +188,27 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
             rms.append(rm)
         comm.barrier()
 
+        total_rae_rec_grad = zeros(RecursiveAutoencoder.compute_parameter_num(embsize))
         total_rae_grad = zeros(RecursiveAutoencoder.compute_parameter_num(embsize))
         total_rm_grad = zeros(ReorderClassifer.compute_parameter_num(embsize)*worker_num)
         # compute local reconstruction error, reo and gradients
-        local_error, local_rae_gradient, local_rm_gradient = process_local_batch(local_rm, rae, word_vectors, instances, lambda_rec, lambda_reo)
-        local_error /= len(instances)
-        local_rae_gradient /= len(instances)
-        local_rm_gradient /= len(instances)
-        total_error = comm.reduce(local_error, op=MPI.SUM, root=0)
-        comm.Reduce([local_rae_gradient, MPI.DOUBLE], [total_rae_grad, MPI.DOUBLE],
+        local_rae_error, local_rm_error,rae_rec_gradient, rae_gradient, rm_gradient = process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo)
+        local_rm_error /= len(instances)
+        rm_gradient /= len(instances)
+        rae_gradient /= len(instances)
+
+        total_rae_error = comm.reduce(local_rae_error, op=MPI.SUM, root=0)
+        total_rm_error = comm.reduce(local_rm_error, op=MPI.SUM, root=0)
+        comm.Reduce([rae_rec_gradient, MPI.DOUBLE], [total_rae_rec_grad, MPI.DOUBLE],
+                    op=MPI.SUM, root=0)
+        comm.Reduce([rae_gradient, MPI.DOUBLE], [total_rae_grad, MPI.DOUBLE],
                     op=MPI.SUM, root=0)
 
-        total_rm_grad[0:delta] += local_rm_gradient
+        total_error = total_rm_error + total_rae_error/total_internal_node
+        total_rae_rec_grad /= total_internal_node
+        total_rae_grad += total_rae_rec_grad
+
+        total_rm_grad[0:delta] += rm_gradient
         for i in range(1, worker_num):
             local_rm_gradient = comm.recv(source=i)
             total_rm_grad[i*delta:(i+1)*delta] += local_rm_gradient
@@ -254,14 +263,16 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
             local_rm = comm.recv(source=0)
             comm.barrier()
 
-            local_error, local_rae_grad, local_rm_grad = process_local_batch(local_rm, rae, word_vectors, instances, lambda_rec, lambda_reo)
-            local_error /= len(instances)
-            local_rae_grad /= len(instances)
-            local_rm_grad /= len(instances)
+            local_rae_error, local_rm_error,rae_rec_gradient, rae_gradient, rm_gradient = process_local_batch(local_rm, rae, word_vectors, instances, lambda_rec, lambda_reo)
+            local_rm_error /= len(instances)
+            rae_gradient /= len(instances)
+            rm_gradient /= len(instances)
 
-            comm.reduce(local_error, op=MPI.SUM, root=0)
-            comm.Reduce([local_rae_grad, MPI.DOUBLE], None, op=MPI.SUM, root=0)
-            comm.send(local_rm_grad, dest=0)
+            comm.reduce(local_rae_error, op=MPI.SUM, root=0)
+            comm.reduce(local_rm_error, op=MPI.SUM, root=0)
+            comm.Reduce([rae_rec_gradient, MPI.DOUBLE], None, op=MPI.SUM, root=0)
+            comm.Reduce([rae_gradient, MPI.DOUBLE], None, op=MPI.SUM, root=0)
+            comm.send(rm_gradient, dest=0)
             comm.barrier()
 
 
@@ -278,26 +289,28 @@ def process_rae_local_batch(rae, word_vectors, instances):
 
 
 def process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo):
+    rae_rec_gradients = rae.get_zero_gradients()
     rae_gradients = rae.get_zero_gradients()
     rm_gradients = rm.get_zero_gradients()
-    total_error = 0
+    total_rm_error = 0
+    total_rae_error = 0
     for instance in instances:
         words_embedded = word_vectors[instance.preWords]
         root_prePhrase, rec_error = rae.forward(words_embedded)
-        total_error += lambda_rec * rec_error
+        total_rae_error += lambda_rec * rec_error
         tmp_rae_gradients = rae.get_zero_gradients()
 
         words_embedded = word_vectors[instance.aftWords]
         root_aftPhrase, rec_error = rae.forward(words_embedded)
-        total_error += lambda_rec * rec_error
+        total_rae_error += lambda_rec * rec_error
 
         rae.backward(root_prePhrase, tmp_rae_gradients)
         rae.backward(root_aftPhrase, tmp_rae_gradients)
         tmp_rae_gradients *= lambda_rec
-        rae_gradients += tmp_rae_gradients
+        rae_rec_gradients += tmp_rae_gradients
 
         softmaxLayer, reo_error = rm.forward(instance, root_prePhrase.p, root_aftPhrase.p, embsize)
-        total_error += reo_error * lambda_reo
+        total_rm_error += reo_error * lambda_reo
         delta_to_left, delta_to_right = rm.backward(softmaxLayer, instance.order, root_prePhrase.p, root_aftPhrase.p,
                                                     rm_gradients)
         tmp_rae_gradients = rae.get_zero_gradients()
@@ -307,7 +320,7 @@ def process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo
         rae_gradients += tmp_rae_gradients
     rm_gradients *= lambda_reo
 
-    return total_error, rae_gradients.to_row_vector(), rm_gradients.to_row_vector()
+    return total_rae_error, total_rm_error, rae_rec_gradients.to_row_vector(), rae_gradients.to_row_vector(), rm_gradients.to_row_vector()
 
 
 def process_unlabeled_batch(rms, rae, word_vectors, unlabeled_instances):
@@ -405,6 +418,23 @@ def prepare_rae_data(word_vectors=None, datafile=None, unlabel_file=None):
                     instance_strs.append(phrases[0])
                     instance_strs.append(phrases[1])
 
+        # send training data
+        instance_num = len(instance_strs)
+        esize = int(instance_num / worker_num + 0.5)
+        sizes = [esize] * worker_num
+        sizes[-1] = instance_num - esize * (worker_num - 1)
+        offset = sizes[0]
+        for i in range(1, worker_num):
+            comm.send(instance_strs[offset:offset + sizes[i]], dest=i)
+            offset += sizes[i]
+        comm.barrier()
+
+        local_instance_strs = instance_strs[0:sizes[0]]
+
+        _, internal_node_num = load_rae_instances(local_instance_strs,
+                                                          word_vectors)
+        total_labeled_internal_node = comm.allreduce(internal_node_num, op=MPI.SUM)
+
         with Reader(unlabel_file) as file:
             for line in file:
                 phrases = line.split("\t")
@@ -428,9 +458,17 @@ def prepare_rae_data(word_vectors=None, datafile=None, unlabel_file=None):
         instances, internal_node_num = load_rae_instances(local_instance_strs,
                                                           word_vectors)
         total_internal_node = comm.allreduce(internal_node_num, op=MPI.SUM)
-        return instances, word_vectors, total_internal_node
+        return instances, word_vectors, total_internal_node, total_labeled_internal_node
     else:
         word_vectors = comm.bcast(root=0)
+
+        # receive data
+        local_instance_strs = comm.recv(source=0)
+        comm.barrier()
+
+        _, internal_node_num = load_rae_instances(local_instance_strs,
+                                                          word_vectors)
+        total_labeled_internal_node = comm.allreduce(internal_node_num, op=MPI.SUM)
 
         # receive data
         local_instance_strs = comm.recv(source=0)
@@ -439,7 +477,7 @@ def prepare_rae_data(word_vectors=None, datafile=None, unlabel_file=None):
         instances, internal_node_num = load_rae_instances(local_instance_strs,
                                                           word_vectors)
         total_internal_node = comm.allreduce(internal_node_num, op=MPI.SUM)
-        return instances, word_vectors, total_internal_node
+        return instances, word_vectors, total_internal_node, total_labeled_internal_node
 
 
 def prepare_data(word_vectors=None, dataFile=None, unlabelFile=None):
@@ -717,7 +755,7 @@ if __name__ == '__main__':
         embsize = word_vectors.embsize()
 
         print >> stderr, 'preparing data...'
-        instances, _, total_internal_node = prepare_rae_data(word_vectors, instances_files, instances_file_of_Unlabel)
+        instances, _, total_internal_node, total_labeled_internal_node = prepare_rae_data(word_vectors, instances_files, instances_file_of_Unlabel)
 
         print >> stderr, 'init. RAE parameters...'
         timer = Timer()
@@ -766,7 +804,7 @@ if __name__ == '__main__':
         print >> stderr, 'Prepare training data...'
         instances, instances_of_Unlabel, _ = prepare_data(word_vectors, instances_files, instances_file_of_Unlabel)
         func = compute_cost_and_grad
-        args = (instances, instances_of_Unlabel, word_vectors, embsize, lambda_rec, lambda_reg, lambda_reo, lambda_unlabel, instances_of_News, is_Test)
+        args = (instances, instances_of_Unlabel, word_vectors, embsize, total_labeled_internal_node, lambda_rec, lambda_reg, lambda_reo, lambda_unlabel, instances_of_News, is_Test)
         try:
             print >> stderr, 'Start real training...'
             theta_opt = lbfgs.optimize(func, theta0, maxiter, verbose, checking_grad,
@@ -802,11 +840,11 @@ if __name__ == '__main__':
         test(instances, theta_opt, word_vectors, isPrint=False)
     else:
         # prepare training data
-        instances, word_vectors, total_internal_node = prepare_rae_data()
+        instances, word_vectors, total_internal_node, total_labeled_internal_node = prepare_rae_data()
         embsize = word_vectors.embsize()
         param_size = embsize * embsize * 4 + embsize * 3 + 2 * embsize * 2 + 2
         theta = zeros((param_size, 1))
         preTrain(theta[0:4 * embsize * embsize + 3 * embsize], instances, total_internal_node,
                  word_vectors, embsize, lambda_reg)
         instances, instances_of_Unlabel,word_vectors = prepare_data()
-        compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, embsize, lambda_rec, lambda_reg, lambda_reo, lambda_unlabel, instances_of_News, is_Test)
+        compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, embsize, total_labeled_internal_node, lambda_rec, lambda_reg, lambda_reo, lambda_unlabel, instances_of_News, is_Test)
