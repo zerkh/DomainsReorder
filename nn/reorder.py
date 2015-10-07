@@ -65,12 +65,16 @@ class ReorderClassifer(object):
         if order == 1:
             total_grad.gradW1 -= concatenate((prePhrase, aftPhrase)).T * softmaxLayer[1]
             total_grad.gradb1 -= softmaxLayer[1]
+            total_grad.gradW2 += concatenate((prePhrase, aftPhrase)).T * softmaxLayer[1]
+            total_grad.gradb2 += softmaxLayer[1]
             delta_to_rae[0] = -1 * softmaxLayer[1]
-            delta_to_rae[1] = 0
+            delta_to_rae[1] = softmaxLayer[1]
         else:
+            total_grad.gradW1 += concatenate((prePhrase, aftPhrase)).T * softmaxLayer[0]
+            total_grad.gradb1 += softmaxLayer[0]
             total_grad.gradW2 -= concatenate((prePhrase, aftPhrase)).T * softmaxLayer[0]
             total_grad.gradb2 -= softmaxLayer[0]
-            delta_to_rae[0] = 0
+            delta_to_rae[0] = softmaxLayer[0]
             delta_to_rae[1] = -1 * softmaxLayer[0]
 
         delta_to_rae = delta_to_rae[0] * cls.W1.T + delta_to_rae[1] * cls.W2.T
@@ -81,9 +85,11 @@ class ReorderClassifer(object):
     def backward_of_unlabel(self, softmaxLayer, avg_sofymaxLayer, num_of_domains, prePhrase, aftPhrase, total_grad):
         total_grad.gradW1 -= concatenate((prePhrase, aftPhrase)).T * softmaxLayer[0]*softmaxLayer[1]*4*(2*avg_sofymaxLayer[0]-1)/num_of_domains
         total_grad.gradb1 -= softmaxLayer[0]*softmaxLayer[1]*4*(2*avg_sofymaxLayer[0]-1)/num_of_domains
+        total_grad.gradW2 += concatenate((prePhrase, aftPhrase)).T * softmaxLayer[0]*softmaxLayer[1]*4*(2*avg_sofymaxLayer[0]-1)/num_of_domains
+        total_grad.gradb2 += softmaxLayer[0]*softmaxLayer[1]*4*(2*avg_sofymaxLayer[0]-1)/num_of_domains
         delta_to_rae = softmaxLayer
         delta_to_rae[0] = softmaxLayer[0]*softmaxLayer[1]*4*(2*avg_sofymaxLayer[0]-1)/num_of_domains * -1
-        delta_to_rae[1] = 0
+        delta_to_rae[1] = softmaxLayer[0]*softmaxLayer[1]*4*(2*avg_sofymaxLayer[0]-1)/num_of_domains
         delta_to_rae = delta_to_rae[0] * self.W1.T + delta_to_rae[1] * self.W2.T
         embSize = len(delta_to_rae) / 2
 
