@@ -304,8 +304,6 @@ def init_theta(embsize, size_of_wordvector, _seed=None):
 
     parameters = []
 
-    #wordvectors
-    parameters.append(init_W(embsize, size_of_wordvector))
     # Wi1
     parameters.append(init_W(embsize, embsize))
     # Wi2
@@ -326,6 +324,9 @@ def init_theta(embsize, size_of_wordvector, _seed=None):
     parameters.append(init_W(1, embsize * 2))
     parameters.append(zeros(1))
     parameters.append(zeros(1))
+
+    #wordvectors
+    parameters.append(init_W(embsize, size_of_wordvector))
 
     if _seed != None:
         set_state(ori_state)
@@ -635,7 +636,6 @@ if __name__ == '__main__':
             _seed = None
         print >> stderr, 'seed: %s' % str(_seed)
 
-        offset = len(word_vectors) * embsize
         theta0 = init_theta(embsize, len(word_vectors), _seed=_seed)
         theta0_init_time = timer.toc()
         print >> stderr, 'shape of theta0 %s' % theta0.shape
@@ -660,7 +660,7 @@ if __name__ == '__main__':
         args = (instances, total_internal_node, word_vectors, embsize, lambda_rec, lambda_reg)
         theta_opt = None
         try:
-            theta_opt = lbfgs.optimize(func, theta0[offset:4 * embsize * embsize + 3 * embsize + offset], maxiter, verbose,
+            theta_opt = lbfgs.optimize(func, theta0[0:4 * embsize * embsize + 3 * embsize], maxiter, verbose,
                                        checking_grad,
                                        args, callback=callback)
         except GridentCheckingFailedError:
@@ -679,7 +679,7 @@ if __name__ == '__main__':
         args = (instances, word_vectors, embsize, total_internal_node, lambda_rec,lambda_reg, lambda_reo, instances_of_News, is_Test)
         try:
             print >> stderr, 'Start training...'
-            theta_opt = lbfgs.optimize(func, theta0, maxiter, verbose, checking_grad,
+            theta_opt = lbfgs.optimize(func, theta_opt, maxiter, verbose, checking_grad,
                                        args, callback=callback)
         except GridentCheckingFailedError:
             send_terminate_signal()
@@ -716,8 +716,7 @@ if __name__ == '__main__':
         embsize = word_vectors.embsize()
         param_size = embsize * embsize * 4 + embsize * 3 + 2 * embsize * 2 + 2
         theta = zeros((param_size, 1))
-        offset = embsize * len(word_vectors)
-        preTrain(theta[offset:4 * embsize * embsize + 3 * embsize + offset], instances, total_internal_node,
+        preTrain(theta[0:4 * embsize * embsize + 3 * embsize], instances, total_internal_node,
                  word_vectors, embsize, lambda_rec, lambda_reg)
         instances, word_vectors = prepare_data()
         compute_cost_and_grad(theta, instances, word_vectors, embsize, total_internal_node,
