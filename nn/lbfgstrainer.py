@@ -660,7 +660,7 @@ if __name__ == '__main__':
         args = (instances, total_internal_node, word_vectors, embsize, lambda_rec, lambda_reg)
         theta_opt = None
         try:
-            theta_opt = lbfgs.optimize(func, theta0[offset:4 * embsize * embsize + 3 * embsize], maxiter, verbose,
+            theta_opt = lbfgs.optimize(func, theta0[offset:4 * embsize * embsize + 3 * embsize + offset], maxiter, verbose,
                                        checking_grad,
                                        args, callback=callback)
         except GridentCheckingFailedError:
@@ -717,7 +717,7 @@ if __name__ == '__main__':
         param_size = embsize * embsize * 4 + embsize * 3 + 2 * embsize * 2 + 2
         theta = zeros((param_size, 1))
         offset = embsize * len(word_vectors)
-        preTrain(theta[offset:4 * embsize * embsize + 3 * embsize], instances, total_internal_node,
+        preTrain(theta[offset:4 * embsize * embsize + 3 * embsize + offset], instances, total_internal_node,
                  word_vectors, embsize, lambda_rec, lambda_reg)
         instances, word_vectors = prepare_data()
         compute_cost_and_grad(theta, instances, word_vectors, embsize, total_internal_node,
