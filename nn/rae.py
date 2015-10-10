@@ -395,10 +395,10 @@ class RecursiveAutoencoder(object):
 
             if not isRec:
                 if isinstance(node.left_child, LeafNode):
-                    total_wordvectors_grad.gradvectors[:, node.left_child.index] += dot(delta_parent, self.Wi1)
+                    total_wordvectors_grad.gradvectors[:, node.left_child.index] += dot(self.Wi1.T, delta_parent)
 
                 if isinstance(node.right_child, LeafNode):
-                    total_wordvectors_grad.gradvectors[:, node.right_child.index] += dot(delta_parent, self.Wi2)
+                    total_wordvectors_grad.gradvectors[:, node.right_child.index] += dot(self.Wi2.T, delta_parent)
 
             # recursive
             delta_parent_out_left = dot(self.Wi1.T, delta_parent) - node.y1_minus_c1
