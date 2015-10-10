@@ -5,6 +5,7 @@ Created on May 11, 2014
 @author: lpeng
 '''
 import numpy as np
+from numpy import arange, dot, zeros, zeros_like, concatenate
 
 from ioutil import Reader
 
@@ -87,6 +88,29 @@ class WordVectors(object):
       
       return word_vectors
 
+  class Gradients(object):
+    def __init__(self, wordvectors):
+        self.embsize = wordvectors._embsize
+        self.word2id = wordvectors._word2id
+        self.gradvectors = zeros_like(wordvectors._vectors)
+
+    def to_row_vector(self):
+      '''Place all the gradients in a row vector
+      '''
+      vectors = []
+      vectors.append(self.gradvectors.reshape(self.gradvectors.size, 1))
+      return concatenate(vectors)[:, 0]
+
+    def __mul__(self, other):
+      self.gradvectors *= other
+      return self
+
+    def __add__(self, other):
+      self.gradvectors += other.gradvectors
+      return self
+
+  def get_zero_gradients(self):
+    return self.Gradients(self)
 
 if __name__ == '__main__':
   import argparse

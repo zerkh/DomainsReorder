@@ -166,7 +166,8 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, total_interna
         rm = ReorderClassifer.build(theta[offset:], embsize, rae)
 
         #compute local reconstruction error, reo and gradients
-        local_rae_error, local_rm_error,rae_rec_gradient, rae_gradient, rm_gradient = process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo)
+        local_rae_error, local_rm_error,rae_rec_gradient, rae_gradient, rm_gradient, wordvector_gradient \
+            = process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo)
 
         # compute total reconstruction error
         total_rae_error = comm.reduce(local_rae_error, op=MPI.SUM, root=0)
@@ -177,14 +178,18 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, total_interna
         final_cost = total_rm_error / len(instances) + total_rae_error / total_internal_node + lambda_reg / 2 * reg
 
         # compute gradients
+        #词向量未归一化,未加入正则化
         total_rae_rec_grad = zeros_like(rae_rec_gradient)
         total_rae_grad = zeros_like(rae_gradient)
         total_rm_grad = zeros_like(rm_gradient)
+        total_wordvec_grad = zeros_like(wordvector_gradient)
         comm.Reduce([rae_rec_gradient, MPI.DOUBLE], [total_rae_rec_grad, MPI.DOUBLE],
                     op=MPI.SUM, root=0)
         comm.Reduce([rae_gradient, MPI.DOUBLE], [total_rae_grad, MPI.DOUBLE],
                     op=MPI.SUM, root=0)
         comm.Reduce([rm_gradient, MPI.DOUBLE], [total_rm_grad, MPI.DOUBLE],
+                    op=MPI.SUM, root=0)
+        comm.Reduce([wordvector_gradient, MPI.DOUBLE], [total_wordvec_grad, MPI.DOUBLE],
                     op=MPI.SUM, root=0)
         total_rae_grad /= len(instances)
         total_rm_grad /= len(instances)
@@ -210,7 +215,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, total_interna
 
         total_rm_grad += reg_grad.to_row_vector()
 
-        return final_cost, concatenate((total_rae_grad, total_rm_grad))
+        return final_cost, concatenate((total_wordvec_grad, total_rae_grad, total_rm_grad))
     else:
         while True:
             # receive signal
@@ -229,7 +234,8 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, total_interna
             rm = ReorderClassifer.build(theta[offset:], embsize, rae)
 
             # compute local reconstruction error, reo and gradients
-            local_rae_error, local_rm_error,rae_rec_gradient, rae_gradient, rm_gradient = process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo)
+            local_rae_error, local_rm_error,rae_rec_gradient, rae_gradient, rm_gradient, wordvector_gradient \
+                = process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo)
 
             # send local reconstruction error to root
             comm.reduce(local_rae_error, op=MPI.SUM, root=0)
@@ -239,6 +245,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, total_interna
             comm.Reduce([rae_rec_gradient, MPI.DOUBLE], None, op=MPI.SUM, root=0)
             comm.Reduce([rae_gradient, MPI.DOUBLE], None, op=MPI.SUM, root=0)
             comm.Reduce([rm_gradient, MPI.DOUBLE], None, op=MPI.SUM, root=0)
+            comm.Reduce([wordvector_gradient, MPI.DOUBLE], None, op=MPI.SUM, root=0)
 
 
 def process_rae_local_batch(rae, word_vectors, instances):
@@ -257,6 +264,7 @@ def process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo
     rae_rec_gradients = rae.get_zero_gradients()
     rae_gradients = rae.get_zero_gradients()
     rm_gradients = rm.get_zero_gradients()
+    wordvectors_gradients = word_vectors.get_zero_gradients()
     total_rm_error = 0
     total_rae_error = 0
     for instance in instances:
@@ -279,22 +287,25 @@ def process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo
         delta_to_left, delta_to_right = rm.backward(softmaxLayer, instance.order, root_prePhrase.p, root_aftPhrase.p,
                                                     rm_gradients)
         tmp_rae_gradients = rae.get_zero_gradients()
-        rae.backward(root_prePhrase, tmp_rae_gradients, delta_to_left, isRec=False)
-        rae.backward(root_aftPhrase, tmp_rae_gradients, delta_to_right, isRec=False)
+        rae.backward(root_prePhrase, tmp_rae_gradients, wordvectors_gradients, delta_to_left, isRec=False)
+        rae.backward(root_aftPhrase, tmp_rae_gradients, wordvectors_gradients, delta_to_right, isRec=False)
         tmp_rae_gradients *= lambda_reo
         rae_gradients += tmp_rae_gradients
     rm_gradients *= lambda_reo
 
-    return total_rae_error, total_rm_error, rae_rec_gradients.to_row_vector(), rae_gradients.to_row_vector(), rm_gradients.to_row_vector()
+    return total_rae_error, total_rm_error, rae_rec_gradients.to_row_vector(), \
+           rae_gradients.to_row_vector(), rm_gradients.to_row_vector(), wordvectors_gradients.to_row_vector()
 
 
-def init_theta(embsize, _seed=None):
+def init_theta(embsize, size_of_wordvector, _seed=None):
     if _seed != None:
         ori_state = get_state()
         seed(_seed)
 
     parameters = []
 
+    #wordvectors
+    parameters.append(init_W(embsize, size_of_wordvector))
     # Wi1
     parameters.append(init_W(embsize, embsize))
     # Wi2
@@ -604,6 +615,8 @@ if __name__ == '__main__':
         print >> stderr, 'Model file: %s' % model
         print >> stderr, 'Word vector file: %s' % word_vector_file
         print >> stderr, 'lambda_reg: %20.18f' % lambda_reg
+        print >> stderr, 'lambda_rec: %20.18f' % lambda_rec
+        print >> stderr, 'lambda_reo: %20.18f' % lambda_reo
         print >> stderr, 'Max iterations: %d' % maxiter
         if _seed:
             print >> stderr, 'Random seed: %s' % _seed
@@ -622,7 +635,8 @@ if __name__ == '__main__':
             _seed = None
         print >> stderr, 'seed: %s' % str(_seed)
 
-        theta0 = init_theta(embsize, _seed=_seed)
+        offset = len(word_vectors) * embsize
+        theta0 = init_theta(embsize, len(word_vectors), _seed=_seed)
         theta0_init_time = timer.toc()
         print >> stderr, 'shape of theta0 %s' % theta0.shape
         timer.tic()
@@ -639,13 +653,14 @@ if __name__ == '__main__':
 
         print >> stderr, 'preparing data...'
         instances, _, total_internal_node = prepare_rae_data(word_vectors, instances_files)
+        print >> stderr, 'amount of instance: %d' % len(instances)
         print >> stderr, 'optimizing...'
         callback = ThetaSaver(model, every)
         func = preTrain
         args = (instances, total_internal_node, word_vectors, embsize, lambda_rec, lambda_reg)
         theta_opt = None
         try:
-            theta_opt = lbfgs.optimize(func, theta0[0:4 * embsize * embsize + 3 * embsize], maxiter, verbose,
+            theta_opt = lbfgs.optimize(func, theta0[offset:4 * embsize * embsize + 3 * embsize], maxiter, verbose,
                                        checking_grad,
                                        args, callback=callback)
         except GridentCheckingFailedError:
@@ -701,7 +716,10 @@ if __name__ == '__main__':
         embsize = word_vectors.embsize()
         param_size = embsize * embsize * 4 + embsize * 3 + 2 * embsize * 2 + 2
         theta = zeros((param_size, 1))
-        preTrain(theta[0:4 * embsize * embsize + 3 * embsize], instances, total_internal_node,
+        offset = embsize * len(word_vectors)
+        preTrain(theta[offset:4 * embsize * embsize + 3 * embsize], instances, total_internal_node,
                  word_vectors, embsize, lambda_rec, lambda_reg)
         instances, word_vectors = prepare_data()
-        compute_cost_and_grad(theta, instances, word_vectors, embsize, total_internal_node, lambda_rec, lambda_reg, lambda_reo, instances_of_News, is_Test)
+        compute_cost_and_grad(theta, instances, word_vectors, embsize, total_internal_node,
+                              lambda_rec, lambda_reg, lambda_reo,
+                              instances_of_News, is_Test)
