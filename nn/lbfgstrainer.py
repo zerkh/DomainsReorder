@@ -719,7 +719,7 @@ if __name__ == '__main__':
         # prepare training data
         instances, word_vectors, total_internal_node = prepare_rae_data()
         embsize = word_vectors.embsize()
-        param_size = embsize * embsize * 4 + embsize * 3 + 2 * embsize * 2 + 2
+        param_size = embsize * embsize * 4 + embsize * 3 + 2 * embsize * 2 + 2 + embsize * len(word_vectors)
         theta = zeros((param_size, 1))
         preTrain(theta[0:4 * embsize * embsize + 3 * embsize], instances, total_internal_node,
                  word_vectors, embsize, lambda_rec, lambda_reg)
