@@ -165,6 +165,9 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, total_interna
 
         rm = ReorderClassifer.build(theta[offset:], embsize, rae)
 
+        offset += ReorderClassifer.compute_parameter_num(embsize)
+
+        word_vectors.reloadVectors(theta[offset:])
         #compute local reconstruction error, reo and gradients
         local_rae_error, local_rm_error,rae_rec_gradient, rae_gradient, rm_gradient, wordvector_gradient \
             = process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo)
@@ -297,7 +300,7 @@ def process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo
            rae_gradients.to_row_vector(), rm_gradients.to_row_vector(), wordvectors_gradients.to_row_vector()
 
 
-def init_theta(embsize, size_of_wordvector, _seed=None):
+def init_theta(embsize, word_vectors, _seed=None):
     if _seed != None:
         ori_state = get_state()
         seed(_seed)
@@ -326,7 +329,7 @@ def init_theta(embsize, size_of_wordvector, _seed=None):
     parameters.append(zeros(1))
 
     #wordvectors
-    parameters.append(init_W(embsize, size_of_wordvector))
+    parameters.append(word_vectors.back_to_theta())
 
     if _seed != None:
         set_state(ori_state)
@@ -636,7 +639,7 @@ if __name__ == '__main__':
             _seed = None
         print >> stderr, 'seed: %s' % str(_seed)
 
-        theta0 = init_theta(embsize, len(word_vectors), _seed=_seed)
+        theta0 = init_theta(embsize, word_vectors, _seed=_seed)
         theta0_init_time = timer.toc()
         print >> stderr, 'shape of theta0 %s' % theta0.shape
         timer.tic()
