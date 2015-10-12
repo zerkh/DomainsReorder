@@ -88,6 +88,19 @@ class WordVectors(object):
       
       return word_vectors
 
+  def reloadVectors(self, theta):
+      offset = 0
+      for idx in range(0, len(self._word2id)):
+          self._vectors[:, idx] += theta[offset:offset+self._embsize]
+          offset += self._embsize
+
+  def back_to_theta(self):
+      theta = []
+      for idx in range(0, len(self._word2id)):
+          theta.append(self._vectors[:,idx])
+
+      return concatenate(theta)
+
   class Gradients(object):
     def __init__(self, wordvectors):
         self.embsize = wordvectors._embsize
@@ -98,8 +111,10 @@ class WordVectors(object):
       '''Place all the gradients in a row vector
       '''
       vectors = []
-      vectors.append(self.gradvectors.reshape(self.gradvectors.size, 1))
-      return concatenate(vectors)[:, 0]
+      for idx in range(0, len(self.word2id)):
+        vectors.append(self.gradvectors[:,idx])
+
+      return concatenate(vectors)
 
     def __mul__(self, other):
       self.gradvectors *= other
