@@ -91,7 +91,7 @@ class WordVectors(object):
   def reloadVectors(self, theta):
       offset = 0
       for idx in range(0, len(self._word2id)):
-          self._vectors[:, idx] += theta[offset:offset+self._embsize]
+          self._vectors[:, idx] = theta[offset:offset+self._embsize].T
           offset += self._embsize
 
   def back_to_theta(self):
