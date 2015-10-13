@@ -269,7 +269,7 @@ def process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo
     rae_rec_gradients = rae.get_zero_gradients()
     rae_gradients = rae.get_zero_gradients()
     rm_gradients = rm.get_zero_gradients()
-    wordvectors_gradients = word_vectors.get_zero_gradients(word_vectors)
+    wordvectors_gradients = word_vectors.get_zero_gradients()
     total_rm_error = 0
     total_rae_error = 0
     for instance in instances:
