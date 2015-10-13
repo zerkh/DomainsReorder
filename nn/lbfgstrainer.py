@@ -196,6 +196,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, total_interna
                     op=MPI.SUM, root=0)
         total_rae_grad /= len(instances)
         total_rm_grad /= len(instances)
+        total_wordvec_grad /= len(instances)
         total_rae_rec_grad /= total_internal_node
         total_rae_grad += total_rae_rec_grad
 
