@@ -681,10 +681,11 @@ if __name__ == '__main__':
         print >> stderr, 'Prepare data...'
         instances, _ = prepare_data(word_vectors, instances_files)
         func = compute_cost_and_grad
+        theta0[0:4*embsize*embsize+3*embsize] += theta_opt
         args = (instances, word_vectors, embsize, total_internal_node, lambda_rec,lambda_reg, lambda_reo, instances_of_News, is_Test)
         try:
             print >> stderr, 'Start training...'
-            theta_opt = lbfgs.optimize(func, theta_opt, maxiter, verbose, checking_grad,
+            theta_opt = lbfgs.optimize(func, theta0, maxiter, verbose, checking_grad,
                                        args, callback=callback)
         except GridentCheckingFailedError:
             send_terminate_signal()
