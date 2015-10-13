@@ -398,6 +398,8 @@ class RecursiveAutoencoder(object):
                     total_wordvectors_grad.gradvectors[:, node.left_child.index] += dot(self.Wi1.T, delta_parent).T
 
                 if isinstance(node.right_child, LeafNode):
+                    print total_wordvectors_grad.gradvectors[:, node.right_child.index]
+                    print dot(self.Wi2.T, delta_parent).T
                     total_wordvectors_grad.gradvectors[:, node.right_child.index] += dot(self.Wi2.T, delta_parent).T
 
 
