@@ -682,7 +682,7 @@ if __name__ == '__main__':
         print >> stderr, 'Prepare data...'
         instances, _ = prepare_data(word_vectors, instances_files)
         func = compute_cost_and_grad
-        theta0[0:4*embsize*embsize+3*embsize] += theta_opt
+        theta0[0:4*embsize*embsize+3*embsize] = theta_opt
         args = (instances, word_vectors, embsize, total_internal_node, lambda_rec,lambda_reg, lambda_reo, instances_of_News, is_Test)
         try:
             print >> stderr, 'Start training...'
@@ -702,8 +702,10 @@ if __name__ == '__main__':
         with Writer(model) as model_pickler:
             pickle.dump(theta_opt, model_pickler)
         # pure text form
+        offset = embsize * embsize * 4 + embsize * 3 + 2 * embsize * 2 + 2
         with Writer(model + '.txt') as writer:
-            [writer.write('%20.8f\n' % v) for v in theta_opt]
+            [writer.write('%20.8f\n' % v) for v in theta_opt[0:offset]]
+        word_vectors.save_to_file(model + ".wordvec")
         thetaopt_saving_time = timer.toc()
 
         print >> stderr, 'Init. theta0  : %10.2f s' % theta0_init_time
