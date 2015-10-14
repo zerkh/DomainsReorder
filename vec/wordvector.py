@@ -103,12 +103,13 @@ class WordVectors(object):
 
   def save_to_file(self, filename):
       outFile = open(filename, "w")
-      outFile.writelines(str(len(self)) + " " + str(self._embsize))
+      outFile.writeline(str(len(self)) + " " + str(self._embsize))
       for word in self._word2id:
           outFile.write(word + " ")
           idx = self._word2id[word]
           for i in range(self._embsize):
             outFile.write(str(self._vectors[i, idx]) + " ")
+          outFile.write("\n")
       outFile.close()
 
   class Gradients(object):
