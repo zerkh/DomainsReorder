@@ -238,7 +238,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, total_interna
             offset = RecursiveAutoencoder.compute_parameter_num(embsize)
             rm = ReorderClassifer.build(theta[offset:], embsize, rae)
             offset += ReorderClassifer.compute_parameter_num(embsize)
-            word_vectors.reloadVectors(theta[offset:])
+            word_vectors = word_vectors.reloadVectors(theta[offset:])
 
             # compute local reconstruction error, reo and gradients
             local_rae_error, local_rm_error,rae_rec_gradient, rae_gradient, rm_gradient, wordvector_gradient \
