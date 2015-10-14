@@ -103,7 +103,7 @@ class WordVectors(object):
 
   def save_to_file(self, filename):
       outFile = open(filename, "w")
-      outFile.writeline(str(len(self)) + " " + str(self._embsize))
+      outFile.write(str(len(self)) + " " + str(self._embsize) + "\n")
       for word in self._word2id:
           outFile.write(word + " ")
           idx = self._word2id[word]
