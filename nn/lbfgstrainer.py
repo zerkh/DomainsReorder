@@ -298,6 +298,7 @@ def process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo
         tmp_rae_gradients *= lambda_reo
         rae_gradients += tmp_rae_gradients
     rm_gradients *= lambda_reo
+    wordvectors_gradients *= lambda_reo
 
     return total_rae_error, total_rm_error, rae_rec_gradients.to_row_vector(), \
            rae_gradients.to_row_vector(), rm_gradients.to_row_vector(), wordvectors_gradients.to_row_vector()
