@@ -706,6 +706,7 @@ if __name__ == '__main__':
         offset = embsize * embsize * 4 + embsize * 3 + 2 * embsize * 2 + 2
         with Writer(model + '.txt') as writer:
             [writer.write('%20.8f\n' % v) for v in theta_opt[0:offset]]
+        word_vectors.reloadVectors(theta_opt[offset:])
         word_vectors.save_to_file(model + ".wordvec")
         thetaopt_saving_time = timer.toc()
 
