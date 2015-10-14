@@ -93,6 +93,7 @@ class WordVectors(object):
       for idx in range(0, len(self._word2id)):
           self._vectors[:, idx] = np.array(theta[offset:offset+self._embsize]).T
           offset += self._embsize
+      return self
 
   def back_to_theta(self):
       theta = []
