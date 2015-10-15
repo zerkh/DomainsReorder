@@ -334,7 +334,8 @@ def init_theta(embsize, word_vectors, _seed=None):
     parameters.append(zeros(1))
 
     #wordvectors
-    parameters.append(word_vectors.back_to_theta())
+    #parameters.append(word_vectors.back_to_theta())
+    parameters.append(init_W(embsize, len(word_vectors)))
 
     if _seed != None:
         set_state(ori_state)
@@ -645,6 +646,11 @@ if __name__ == '__main__':
         print >> stderr, 'seed: %s' % str(_seed)
 
         theta0 = init_theta(embsize, word_vectors, _seed=_seed)
+
+        #init wordvec randomly
+        offset = embsize * embsize * 4 + embsize * 3 + 2 * embsize * 2 + 2
+        word_vectors = word_vectors.reloadVectors(theta0[offset:])
+
         theta0_init_time = timer.toc()
         print >> stderr, 'shape of theta0 %s' % theta0.shape
         timer.tic()
