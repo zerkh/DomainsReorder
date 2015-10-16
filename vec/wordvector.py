@@ -5,6 +5,7 @@ Created on May 11, 2014
 @author: lpeng
 '''
 import numpy as np
+from numpy import arange, dot, zeros, zeros_like, concatenate
 
 from ioutil import Reader
 
@@ -87,6 +88,62 @@ class WordVectors(object):
       
       return word_vectors
 
+  def get_weights_square(self):
+      square = (self._vectors ** 2).sum()
+
+      return square
+
+
+  def reloadVectors(self, theta):
+      offset = 0
+      for idx in range(0, len(self._word2id)):
+          self._vectors[:, idx] = np.array(theta[offset:offset+self._embsize]).T
+          offset += self._embsize
+      return self
+
+  def back_to_theta(self):
+      theta = []
+      for idx in range(0, len(self._word2id)):
+          theta.append(self._vectors[:,idx])
+
+      return concatenate(theta)
+
+  def save_to_file(self, filename):
+      outFile = open(filename, "w")
+      outFile.write(str(len(self)) + " " + str(self._embsize) + "\n")
+      for word in self._word2id:
+          outFile.write(word + " ")
+          idx = self._word2id[word]
+          for i in range(self._embsize):
+            outFile.write(str(self._vectors[i, idx]) + " ")
+          outFile.write("\n")
+      outFile.close()
+
+  class Gradients(object):
+    def __init__(self, wordvectors):
+        self.embsize = wordvectors._embsize
+        self.word2id = wordvectors._word2id
+        self.gradvectors = zeros_like(wordvectors._vectors)
+
+    def to_row_vector(self):
+      '''Place all the gradients in a row vector
+      '''
+      vectors = []
+      for idx in range(0, len(self.word2id)):
+        vectors.append(self.gradvectors[:,idx])
+
+      return concatenate(vectors)
+
+    def __mul__(self, other):
+      self.gradvectors *= other
+      return self
+
+    def __add__(self, other):
+      self.gradvectors += other.gradvectors
+      return self
+
+  def get_zero_gradients(self):
+    return self.Gradients(self)
 
 if __name__ == '__main__':
   import argparse
