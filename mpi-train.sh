@@ -18,8 +18,8 @@ mpirun -n $1 python $PYTHONPATH/nn/lbfgstrainer.py\
   -model $DEMODIR/output/training-file.mpi-$N.model.gz\
   -word_vector $DEMODIR/data/MixedDomain/MixedDomains.zh.vec\
   -lambda_reg 0.00006\
-  -lambda_reo 0.00008\
-  -lambda_rec 0.00001\
+  -lambda_reo 0.88236\
+  -lambda_rec 0.11764\
   -isTest 1\
-  -m 500\
+  -m 100\
   -v 1
