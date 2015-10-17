@@ -169,7 +169,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, total_interna
         offset += ReorderClassifer.compute_parameter_num(embsize)
 
         #compute local reconstruction error, reo and gradients
-        local_rae_error, local_rm_error,rae_rec_gradient, rae_gradient, rm_gradient, wordvector_gradient \
+        local_rae_error, local_rm_error,rae_rec_gradient, rae_gradient, rm_gradient \
             = process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo)
 
         # compute total reconstruction error
@@ -232,10 +232,9 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, total_interna
             offset = RecursiveAutoencoder.compute_parameter_num(embsize)
             rm = ReorderClassifer.build(theta[offset:], embsize, rae)
             offset += ReorderClassifer.compute_parameter_num(embsize)
-            word_vectors = word_vectors.reloadVectors(theta[offset:])
 
             # compute local reconstruction error, reo and gradients
-            local_rae_error, local_rm_error,rae_rec_gradient, rae_gradient, rm_gradient, wordvector_gradient \
+            local_rae_error, local_rm_error,rae_rec_gradient, rae_gradient, rm_gradient \
                 = process_local_batch(rm, rae, word_vectors, instances, lambda_rec, lambda_reo)
 
             # send local reconstruction error to root
@@ -246,7 +245,6 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, total_interna
             comm.Reduce([rae_rec_gradient, MPI.DOUBLE], None, op=MPI.SUM, root=0)
             comm.Reduce([rae_gradient, MPI.DOUBLE], None, op=MPI.SUM, root=0)
             comm.Reduce([rm_gradient, MPI.DOUBLE], None, op=MPI.SUM, root=0)
-            comm.Reduce([wordvector_gradient, MPI.DOUBLE], None, op=MPI.SUM, root=0)
 
 
 def process_rae_local_batch(rae, word_vectors, instances):
