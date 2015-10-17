@@ -708,11 +708,8 @@ if __name__ == '__main__':
                         with Writer(model) as model_pickler:
                             pickle.dump(theta_opt, model_pickler)
                         # pure text form
-                        offset = embsize * embsize * 4 + embsize * 3 + 2 * embsize * 2 + 2
                         with Writer(model + '.txt') as writer:
-                            [writer.write('%20.8f\n' % v) for v in theta_opt[0:offset]]
-                        word_vectors = word_vectors.reloadVectors(theta_opt[offset:])
-                        word_vectors.save_to_file(model + ".wordvec")
+                            [writer.write('%20.8f\n' % v) for v in theta_opt]
                         thetaopt_saving_time = timer.toc()
 
                         print >> stderr, 'Init. theta0  : %10.2f s' % theta0_init_time
