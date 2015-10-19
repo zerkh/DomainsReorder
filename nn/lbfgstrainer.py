@@ -157,7 +157,7 @@ def compute_cost_and_grad(theta, instances, word_vectors, embsize, total_interna
         if is_Test:
             instances_of_test, _ = prepare_test_data(word_vectors, instances_of_News)
             instances_of_test = random.sample(instances_of_test, 500)
-            test(instances_of_test, theta,isPrint=True)
+            test(instances_of_test, theta, word_vectors, lambda_rec, lambda_reo, lambda_reg, isPrint=True)
 
         #init rae
         rae = RecursiveAutoencoder.build(theta, embsize)
