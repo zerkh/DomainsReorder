@@ -604,13 +604,13 @@ if __name__ == '__main__':
     is_Test = options.isTest
     instances_of_News = options.instances_of_News
 
-    condidate_rec = [[0.1,1], [0.001, 0.1], [0.0001, 0.001], [0.00001, 0.0001], [0.000001, 0.00001]]
-    condidate_reo = [[0.1,1], [0.001, 0.1], [0.0001, 0.001], [0.00001, 0.0001], [0.000001, 0.00001]]
+    condidate_rec = [[0.001, 0.1], [0.0001, 0.001], [0.00001, 0.0001], [0.000001, 0.00001]]
+    condidate_reo = [[0.001, 0.1], [0.0001, 0.001], [0.00001, 0.0001], [0.000001, 0.00001]]
     condidate_reg = [[0.1,1], [0.001, 0.1], [0.0001, 0.001], [0.00001, 0.0001], [0.000001, 0.00001]]
 
-    for pos_rec in range(0, 5):
-        for pos_reo in range(0, 5):
-            for pos_reg in range(0, 5):
+    for pos_rec in range(0, len(condidate_rec)):
+        for pos_reo in range(0, len(condidate_reo)):
+            for pos_reg in range(0, len(condidate_reg)):
                 for sample in range(0, 5):
                     lambda_rec = random.uniform(condidate_rec[pos_rec][0], condidate_rec[pos_rec][1])
                     lambda_reo = random.uniform(condidate_reo[pos_reo][0], condidate_reo[pos_reo][1])
