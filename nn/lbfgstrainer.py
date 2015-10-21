@@ -733,118 +733,132 @@ if __name__ == '__main__':
     is_Test = options.isTest
     instances_of_News = options.instances_of_News
 
-    if rank == 0:
-        logging.basicConfig()
-        logger = logging.getLogger(__name__)
-        if checking_grad:
-            logger.setLevel(logging.WARN)
-        else:
-            logger.setLevel(logging.INFO)
+    condidate_rec = [[0.001, 0.1], [0.0001, 0.001], [0.00001, 0.0001], [0.000001, 0.00001]]
+    condidate_reo = [[0.001, 0.1], [0.0001, 0.001], [0.00001, 0.0001], [0.000001, 0.00001]]
+    condidate_reg = [[0.1,1], [0.001, 0.1], [0.0001, 0.001], [0.00001, 0.0001], [0.000001, 0.00001]]
+    condidate_unlabel = [[0.1,1], [0.001, 0.1], [0.0001, 0.001], [0.00001, 0.0001], [0.000001, 0.00001]]
 
-        print >> stderr, 'Instances file: %s' % instances_files
-        print >> stderr, 'Model file: %s' % model
-        print >> stderr, 'Word vector file: %s' % word_vector_file
-        print >> stderr, 'lambda_reg: %20.18f' % lambda_reg
-        print >> stderr, 'Max iterations: %d' % maxiter
-        if _seed:
-            print >> stderr, 'Random seed: %s' % _seed
-        print >> stderr, ''
+    for pos_rec in range(0, len(condidate_rec)):
+        for pos_reo in range(0, len(condidate_reo)):
+            for pos_reg in range(0, len(condidate_reg)):
+                for pos_unlabel in range(0, len(condidate_unlabel)):
+                    for sample in range(0, 5):
+                        lambda_rec = random.uniform(condidate_rec[pos_rec][0], condidate_rec[pos_rec][1])
+                        lambda_reo = random.uniform(condidate_reo[pos_reo][0], condidate_reo[pos_reo][1])
+                        lambda_reg = random.uniform(condidate_reg[pos_reg][0], condidate_reg[pos_reg][1])
+                        lambda_unlabel = random.uniform(condidate_unlabel[pos_unlabel][0], condidate_unlabel[pos_unlabel][1])
+                        if rank == 0:
+                            logging.basicConfig()
+                            logger = logging.getLogger(__name__)
+                            if checking_grad:
+                                logger.setLevel(logging.WARN)
+                            else:
+                                logger.setLevel(logging.INFO)
 
-        print >> stderr, 'load word vectors...'
-        word_vectors = WordVectors.load_vectors(word_vector_file)
-        embsize = word_vectors.embsize()
+                            print >> stderr, 'Instances file: %s' % instances_files
+                            print >> stderr, 'Model file: %s' % model
+                            print >> stderr, 'Word vector file: %s' % word_vector_file
+                            print >> stderr, 'lambda_reg: %20.18f' % lambda_reg
+                            print >> stderr, 'Max iterations: %d' % maxiter
+                            if _seed:
+                                print >> stderr, 'Random seed: %s' % _seed
+                            print >> stderr, ''
 
-        print >> stderr, 'preparing data...'
-        instances, _, total_internal_node, total_labeled_internal_node = prepare_rae_data(word_vectors, instances_files, instances_file_of_Unlabel)
+                            print >> stderr, 'load word vectors...'
+                            word_vectors = WordVectors.load_vectors(word_vector_file)
+                            embsize = word_vectors.embsize()
 
-        print >> stderr, 'init. RAE parameters...'
-        timer = Timer()
-        timer.tic()
-        if _seed != None:
-            _seed = int(_seed)
-        else:
-            _seed = None
-        print >> stderr, 'seed: %s' % str(_seed)
+                            print >> stderr, 'preparing data...'
+                            instances, _, total_internal_node, total_labeled_internal_node = prepare_rae_data(word_vectors, instances_files, instances_file_of_Unlabel)
 
-        theta0 = init_theta(embsize, num_of_domains, _seed=_seed)
-        theta0_init_time = timer.toc()
-        print >> stderr, 'shape of theta0 %s' % theta0.shape
-        timer.tic()
-        if save_theta0:
-            print >> stderr, 'saving theta0...'
-            pos = model.rfind('.')
-            if pos < 0:
-                filename = model + '.theta0'
-            else:
-                filename = model[0:pos] + '.theta0' + model[pos:]
-            with Writer(filename) as theta0_writer:
-                pickle.dump(theta0, theta0_writer)
-        theta0_saving_time = timer.toc()
+                            print >> stderr, 'init. RAE parameters...'
+                            timer = Timer()
+                            timer.tic()
+                            if _seed != None:
+                                _seed = int(_seed)
+                            else:
+                                _seed = None
+                            print >> stderr, 'seed: %s' % str(_seed)
 
-        print >> stderr, 'optimizing...'
+                            theta0 = init_theta(embsize, num_of_domains, _seed=_seed)
+                            theta0_init_time = timer.toc()
+                            print >> stderr, 'shape of theta0 %s' % theta0.shape
+                            timer.tic()
+                            if save_theta0:
+                                print >> stderr, 'saving theta0...'
+                                pos = model.rfind('.')
+                                if pos < 0:
+                                    filename = model + '.theta0'
+                                else:
+                                    filename = model[0:pos] + '.theta0' + model[pos:]
+                                with Writer(filename) as theta0_writer:
+                                    pickle.dump(theta0, theta0_writer)
+                            theta0_saving_time = timer.toc()
 
-        callback = ThetaSaver(model, every)
-        func = preTrain
-        args = (instances, total_internal_node, word_vectors, embsize, lambda_reg)
-        theta_opt = None
-        try:
-            theta_opt = lbfgs.optimize(func, theta0[0:4 * embsize * embsize + 3 * embsize], maxiter, verbose,
-                                       checking_grad,
-                                       args, callback=callback)
-        except GridentCheckingFailedError:
-            send_terminate_signal()
-            print >> stderr, 'Gradient checking failed, exit'
-            exit(-1)
+                            print >> stderr, 'optimizing...'
 
-        send_terminate_signal()
-        opt_time = timer.toc()
+                            callback = ThetaSaver(model, every)
+                            func = preTrain
+                            args = (instances, total_internal_node, word_vectors, embsize, lambda_reg)
+                            theta_opt = None
+                            try:
+                                theta_opt = lbfgs.optimize(func, theta0[0:4 * embsize * embsize + 3 * embsize], maxiter, verbose,
+                                                           checking_grad,
+                                                           args, callback=callback)
+                            except GridentCheckingFailedError:
+                                send_terminate_signal()
+                                print >> stderr, 'Gradient checking failed, exit'
+                                exit(-1)
 
-        timer.tic()
+                            send_terminate_signal()
+                            opt_time = timer.toc()
 
-        print >> stderr, 'Prepare training data...'
-        instances, instances_of_Unlabel, _ = prepare_data(word_vectors, instances_files, instances_file_of_Unlabel)
-        func = compute_cost_and_grad
-        args = (instances, instances_of_Unlabel, word_vectors, embsize, total_labeled_internal_node, lambda_rec, lambda_reg, lambda_reo, lambda_unlabel, instances_of_News, is_Test)
-        try:
-            print >> stderr, 'Start real training...'
-            theta_opt = lbfgs.optimize(func, theta0, maxiter, verbose, checking_grad,
-                                       args, callback=callback)
-        except GridentCheckingFailedError:
-            send_terminate_signal()
-            print >> stderr, 'Gradient checking failed, exit'
-            exit(-1)
+                            timer.tic()
 
-        send_terminate_signal()
-        opt_time = timer.toc()
+                            print >> stderr, 'Prepare training data...'
+                            instances, instances_of_Unlabel, _ = prepare_data(word_vectors, instances_files, instances_file_of_Unlabel)
+                            func = compute_cost_and_grad
+                            args = (instances, instances_of_Unlabel, word_vectors, embsize, total_labeled_internal_node, lambda_rec, lambda_reg, lambda_reo, lambda_unlabel, instances_of_News, is_Test)
+                            try:
+                                print >> stderr, 'Start real training...'
+                                theta_opt = lbfgs.optimize(func, theta0, maxiter, verbose, checking_grad,
+                                                           args, callback=callback)
+                            except GridentCheckingFailedError:
+                                send_terminate_signal()
+                                print >> stderr, 'Gradient checking failed, exit'
+                                exit(-1)
 
-        timer.tic()
-        # pickle form
-        print >> stderr, 'saving parameters to %s' % model
-        with Writer(model) as model_pickler:
-            pickle.dump(theta_opt, model_pickler)
-        # pure text form
-        with Writer(model + '.txt') as writer:
-            [writer.write('%20.8f\n' % v) for v in theta_opt]
-        thetaopt_saving_time = timer.toc()
+                            send_terminate_signal()
+                            opt_time = timer.toc()
 
-        print >> stderr, 'Init. theta0  : %10.2f s' % theta0_init_time
-        if save_theta0:
-            print >> stderr, 'Saving theta0 : %10.2f s' % theta0_saving_time
-        print >> stderr, 'Optimizing    : %10.2f s' % opt_time
-        print >> stderr, 'Saving theta  : %10.2f s' % thetaopt_saving_time
-        print >> stderr, 'Done!'
+                            timer.tic()
+                            # pickle form
+                            print >> stderr, 'saving parameters to %s' % model
+                            with Writer(model) as model_pickler:
+                                pickle.dump(theta_opt, model_pickler)
+                            # pure text form
+                            with Writer(model + '.txt') as writer:
+                                [writer.write('%20.8f\n' % v) for v in theta_opt]
+                            thetaopt_saving_time = timer.toc()
 
-        print >> stderr, 'Start testing...'
+                            print >> stderr, 'Init. theta0  : %10.2f s' % theta0_init_time
+                            if save_theta0:
+                                print >> stderr, 'Saving theta0 : %10.2f s' % theta0_saving_time
+                            print >> stderr, 'Optimizing    : %10.2f s' % opt_time
+                            print >> stderr, 'Saving theta  : %10.2f s' % thetaopt_saving_time
+                            print >> stderr, 'Done!'
 
-        instances, _ = prepare_test_data(word_vectors, instances_of_News)
-        test(instances, theta_opt, word_vectors, isPrint=False)
-    else:
-        # prepare training data
-        instances, word_vectors, total_internal_node, total_labeled_internal_node = prepare_rae_data()
-        embsize = word_vectors.embsize()
-        param_size = embsize * embsize * 4 + embsize * 3 + 2 * embsize * 2 + 2
-        theta = zeros((param_size, 1))
-        preTrain(theta[0:4 * embsize * embsize + 3 * embsize], instances, total_internal_node,
-                 word_vectors, embsize, lambda_reg)
-        instances, instances_of_Unlabel,word_vectors = prepare_data()
-        compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, embsize, total_labeled_internal_node, lambda_rec, lambda_reg, lambda_reo, lambda_unlabel, instances_of_News, is_Test)
+                            print >> stderr, 'Start testing...'
+
+                            instances, _ = prepare_test_data(word_vectors, instances_of_News)
+                            test(instances, theta_opt, word_vectors, isPrint=False)
+                        else:
+                            # prepare training data
+                            instances, word_vectors, total_internal_node, total_labeled_internal_node = prepare_rae_data()
+                            embsize = word_vectors.embsize()
+                            param_size = embsize * embsize * 4 + embsize * 3 + 2 * embsize * 2 + 2
+                            theta = zeros((param_size, 1))
+                            preTrain(theta[0:4 * embsize * embsize + 3 * embsize], instances, total_internal_node,
+                                     word_vectors, embsize, lambda_reg)
+                            instances, instances_of_Unlabel,word_vectors = prepare_data()
+                            compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, embsize, total_labeled_internal_node, lambda_rec, lambda_reg, lambda_reo, lambda_unlabel, instances_of_News, is_Test)
