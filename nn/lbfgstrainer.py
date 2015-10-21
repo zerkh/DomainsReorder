@@ -14,6 +14,7 @@ from numpy import concatenate, zeros_like, zeros
 from numpy.random import get_state, set_state, seed
 from mpi4py import MPI
 import random
+import time
 
 from ioutil import Writer
 from ioutil import getPhrases
@@ -168,7 +169,7 @@ def compute_cost_and_grad(theta, instances, instances_of_Unlabel, word_vectors, 
             #test per iteration
             instances_of_test,_ = prepare_test_data(word_vectors, instances_of_News)
             instances_of_test = random.sample(instances_of_test, 500)
-            test(instances_of_test, theta, word_vectors, isPrint=True)
+            test(instances_of_test, theta, word_vectors, lambda_rec, lambda_reo, lambda_reg, lambda_unlabel, isPrint=True)
         # init rae
         rae = RecursiveAutoencoder.build(theta, embsize)
 
@@ -594,11 +595,14 @@ def load_instances(instances_lines, word_vectors):
     return instances
 
 
-def test(instances, theta, word_vectors, isPrint=False):
+def test(instances, theta, word_vectors, lambda_rec, lambda_reo, lambda_reg, lambda_unlabel, isPrint=False):
     if isPrint:
         outfile = open('./output/test_result.txt', 'w')
     total_lines = len(instances)
     total_true = 0
+
+    time_str = time.strftime("%Y_%m_%d_%H_%M", time.localtime())
+    logfile = open('./output/dev/' + time_str + ".log", 'w')
 
     # init rae
     rae = RecursiveAutoencoder.build(theta, embsize)
@@ -641,6 +645,8 @@ def test(instances, theta, word_vectors, isPrint=False):
         outfile.write("Total instances: %f\tTotal true predictions: %f\t" % (total_lines, total_true))
         outfile.write("Precision: %f" % (float(total_true / total_lines)))
     print("Total instances: %f\tToral true predictions: %f\tPrecision: %f\n" %(total_lines, total_true, float(total_true / total_lines)))
+    logfile.write("lambda_rec=%f ,lambda_reo=%f ,lambda_reg=%f ,precision: %f\t"\
+                  % (lambda_rec, lambda_reo, lambda_reg, float(total_true / total_lines)))
 
 
 class ThetaSaver(object):
@@ -851,7 +857,8 @@ if __name__ == '__main__':
                             print >> stderr, 'Start testing...'
 
                             instances, _ = prepare_test_data(word_vectors, instances_of_News)
-                            test(instances, theta_opt, word_vectors, isPrint=False)
+                            test(instances, theta_opt, word_vectors, lambda_rec, lambda_reo, lambda_reg,\
+                                 lambda_unlabel, isPrint=False)
                         else:
                             # prepare training data
                             instances, word_vectors, total_internal_node, total_labeled_internal_node = prepare_rae_data()
