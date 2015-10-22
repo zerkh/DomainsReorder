@@ -507,8 +507,8 @@ def test(instances, theta, word_vectors, lambda_rec, lambda_reg, lambda_reo, isP
     total_lines = len(instances)
     total_true = 0
 
-    time_str = time.strftime("%Y_%m_%d_%H_%M", time.localtime())
-    logfile = open('./output/dev/' + time_str + ".log", 'w')
+    #time_str = time.strftime("%Y_%m_%d_%H_%M", time.localtime())
+    logfile = open('./output/dev/result_dev.log', 'a')
 
     # init rae
     rae = RecursiveAutoencoder.build(theta, embsize)
@@ -539,7 +539,7 @@ def test(instances, theta, word_vectors, lambda_rec, lambda_reg, lambda_reo, isP
         outfile.write("Precision: %f" % (float(total_true / total_lines)))
     print("Total instances: %f\tTotal true predictions: %f\t" % (total_lines, total_true))
     print("Precision: %f" % (float(total_true / total_lines)))
-    logfile.write("lambda_rec=%f ,lambda_reo=%f ,lambda_reg=%f ,precision: %f\t"\
+    logfile.write("lambda_rec=%f ,lambda_reo=%f ,lambda_reg=%f ,precision: %f\n"\
                   % (lambda_rec, lambda_reo, lambda_reg, float(total_true / total_lines)))
 
 
@@ -627,7 +627,7 @@ if __name__ == '__main__':
 
     condidate_rec = [[0.001, 0.1], [0.0001, 0.001], [0.00001, 0.0001], [0.000001, 0.00001]]
     condidate_reo = [[0.001, 0.1], [0.0001, 0.001], [0.00001, 0.0001], [0.000001, 0.00001]]
-    condidate_reg = [[0.1,1], [0.001, 0.1], [0.0001, 0.001], [0.00001, 0.0001], [0.000001, 0.00001]]
+    condidate_reg = [[0.001, 0.1], [0.0001, 0.001], [0.00001, 0.0001], [0.000001, 0.00001]]
 
     for pos_rec in range(0, len(condidate_rec)):
         for pos_reo in range(0, len(condidate_reo)):
